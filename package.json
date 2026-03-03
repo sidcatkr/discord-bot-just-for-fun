@@ -1,0 +1,28 @@
+{
+  "name": "discord-bot-just-for-fun",
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "tsx watch src/bot.ts",
+    "start": "tsx src/bot.ts",
+    "deploy": "tsx src/deploy-commands.ts",
+    "deploy:guild": "tsx src/deploy-commands.ts"
+  },
+  "dependencies": {
+    "better-sqlite3": "^11.9.1",
+    "discord.js": "^14.25.1",
+    "dotenv": "^17.3.1"
+  },
+  "devDependencies": {
+    "@types/better-sqlite3": "^7.6.13",
+    "@types/node": "^22.15.21",
+    "tsx": "^4.19.4",
+    "typescript": "^5.8.3"
+  },
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "better-sqlite3",
+      "esbuild"
+    ]
+  }
+}
