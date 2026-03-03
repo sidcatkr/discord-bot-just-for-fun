@@ -8,8 +8,8 @@ import {
   addGold,
   addItem,
   addTitle,
-  chance,
   pick,
+  sleep,
 } from '../../db/helpers.js'
 
 export const data = new SlashCommandBuilder()
@@ -304,9 +304,61 @@ export async function execute(interaction: ChatInputCommandInteraction) {
   }
 
   addGold(user.id, guildId, -100)
-
   const item = rollGacha()
 
+  // ── Phase 1: 돌리는 중 ──
+  const embed1 = new EmbedBuilder()
+    .setColor(0x2c2f33)
+    .setTitle('🎰 가챠 돌리는 중...')
+    .setDescription(
+      '```\n' +
+      '  ╔══════════════╗\n' +
+      '  ║  🎰 🎰 🎰   ║\n' +
+      '  ║   돌리는 중...  ║\n' +
+      '  ╚══════════════╝\n' +
+      '```',
+    )
+  await interaction.reply({ embeds: [embed1] })
+
+  await sleep(1500)
+
+  // ── Phase 2: 빛이 난다 ──
+  const glowColor =
+    item.rarity === 'mythic' || item.rarity === 'legendary'
+      ? 0xffd700
+      : item.rarity === 'epic'
+        ? 0x9b59b6
+        : item.rarity === 'rare'
+          ? 0x3498db
+          : 0x808080
+
+  const embed2 = new EmbedBuilder()
+    .setColor(glowColor)
+    .setTitle('🎰 가챠 돌리는 중...')
+    .setDescription(
+      '```\n' +
+      '  ╔══════════════╗\n' +
+      '  ║  ✨ ✨ ✨   ║\n' +
+      '  ║   빛이 난다...  ║\n' +
+      '  ╚══════════════╝\n' +
+      '```',
+    )
+  await interaction.editReply({ embeds: [embed2] })
+
+  await sleep(1500)
+
+  // ── Phase 3: 등급 공개 ──
+  const embed3 = new EmbedBuilder()
+    .setColor(rarityColors[item.rarity])
+    .setTitle('🎰 가챠!')
+    .setDescription(
+      `등급이 보인다...!\n\n## ${rarityLabels[item.rarity]}\n\n*아이템이 나타나는 중...*`,
+    )
+  await interaction.editReply({ embeds: [embed3] })
+
+  await sleep(2000)
+
+  // ── Phase 4: 최종 결과 ──
   addItem(user.id, {
     item_name: item.name,
     item_rarity: item.rarity,
@@ -317,28 +369,24 @@ export async function execute(interaction: ChatInputCommandInteraction) {
     crit_bonus: item.crit,
   })
 
-  const embed = new EmbedBuilder()
-    .setColor(rarityColors[item.rarity])
-    .setTitle('🎰 가챠 결과!')
-
-  // Animation-like text
-  const suspense = ['🎰 돌리는 중...', '✨ 빛이 난다...', '💫 뭔가 나온다...!']
-
-  let description = suspense.join('\n') + '\n\n'
-  description += `${item.emoji} **${item.name}**\n`
-  description += `등급: ${rarityLabels[item.rarity]}\n\n`
-
   const stats: string[] = []
   if (item.attack > 0) stats.push(`⚔️ 공격력 +${item.attack}`)
   if (item.defense > 0) stats.push(`🛡️ 방어력 +${item.defense}`)
   if (item.hp > 0) stats.push(`❤️ HP +${item.hp}`)
-  if (item.crit > 0) stats.push(`🎯 크리티컬 +${(item.crit * 100).toFixed(0)}%`)
+  if (item.crit > 0)
+    stats.push(`🎯 크리티컬 +${(item.crit * 100).toFixed(0)}%`)
 
-  description += stats.join(' | ')
-  embed.setDescription(description)
+  const finalEmbed = new EmbedBuilder()
+    .setColor(rarityColors[item.rarity])
+    .setTitle('🎰 가챠 결과!')
+    .setDescription(
+      `${item.emoji} **${item.name}**\n` +
+        `등급: ${rarityLabels[item.rarity]}\n\n` +
+        (stats.length > 0 ? stats.join(' | ') : '특수 능력 없음'),
+    )
 
   if (item.rarity === 'legendary' || item.rarity === 'mythic') {
-    embed.addFields({
+    finalEmbed.addFields({
       name: '🎊 대박!!!',
       value:
         item.rarity === 'mythic'
@@ -357,14 +405,14 @@ export async function execute(interaction: ChatInputCommandInteraction) {
       '💀 100G가 아깝다...',
       '😭 다음에는 전설이 나올 거야... 아마...',
     ]
-    embed.addFields({
+    finalEmbed.addFields({
       name: '😢',
       value: pick(sadMessages),
     })
   }
 
-  embed.setFooter({ text: `잔여 골드: ${player.gold - 100}G` })
-  embed.setTimestamp()
+  finalEmbed.setFooter({ text: `잔여 골드: ${player.gold - 100}G` })
+  finalEmbed.setTimestamp()
 
-  await interaction.reply({ embeds: [embed] })
+  await interaction.editReply({ embeds: [finalEmbed] })
 }

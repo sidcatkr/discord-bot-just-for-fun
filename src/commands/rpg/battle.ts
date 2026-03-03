@@ -11,10 +11,11 @@ import {
   logBattle,
   hasEffect,
   applyStatusEffect,
-  getEquippedItem,
+  getEffectiveStats,
   chance,
   random,
   pick,
+  sleep,
 } from '../../db/helpers.js'
 
 export const data = new SlashCommandBuilder()
@@ -52,6 +53,90 @@ const critMessages = [
   '⚡ 번개처럼 강한 한방!!!',
 ]
 
+// Pre-compute all rounds, return structured data
+interface RoundAction {
+  text: string[]
+  attackerHp: number
+  defenderHp: number
+  finished: boolean
+}
+
+function simulateBattle(
+  userName: string,
+  targetName: string,
+  atkStats: ReturnType<typeof getEffectiveStats>,
+  defStats: ReturnType<typeof getEffectiveStats>,
+  attackerHpStart: number,
+  defenderHpStart: number,
+) {
+  const rounds: RoundAction[] = []
+  let attackerHp = attackerHpStart
+  let defenderHp = defenderHpStart
+
+  for (let round = 1; round <= 3; round++) {
+    const lines: string[] = []
+
+    // Attacker's turn
+    const atkEvade = chance(defStats.evasion * 100)
+    if (atkEvade) {
+      lines.push(`🎯 ${userName}이(가) ${pick(attackVerbs)}!`)
+      lines.push(`💨 ${targetName}이(가) ${pick(dodgeMessages)}`)
+    } else {
+      const isCrit = chance(atkStats.crit_rate * 100)
+      let dmg = random(
+        Math.max(1, atkStats.attack - defStats.defense),
+        atkStats.attack + 5,
+      )
+      if (isCrit) dmg = Math.floor(dmg * 2)
+
+      lines.push(`⚔️ ${userName}이(가) ${pick(attackVerbs)}!`)
+      if (isCrit) lines.push(pick(critMessages))
+      lines.push(`🩸 ${targetName} HP -${dmg}${isCrit ? '!' : ''}`)
+      defenderHp -= dmg
+    }
+
+    if (defenderHp <= 0) {
+      lines.push(`\n💀 ${targetName}이(가) 쓰러졌다!`)
+      rounds.push({ text: lines, attackerHp, defenderHp: 0, finished: true })
+      break
+    }
+
+    // Defender's turn
+    const defEvade = chance(atkStats.evasion * 100)
+    if (defEvade) {
+      lines.push(`🎯 ${targetName}이(가) ${pick(attackVerbs)}!`)
+      lines.push(`💨 ${userName}이(가) ${pick(dodgeMessages)}`)
+    } else {
+      const isCrit = chance(defStats.crit_rate * 100)
+      let dmg = random(
+        Math.max(1, defStats.attack - atkStats.defense),
+        defStats.attack + 5,
+      )
+      if (isCrit) dmg = Math.floor(dmg * 2)
+
+      lines.push(`⚔️ ${targetName}이(가) 반격! ${pick(attackVerbs)}!`)
+      if (isCrit) lines.push(pick(critMessages))
+      lines.push(`🩸 ${userName} HP -${dmg}${isCrit ? '!' : ''}`)
+      attackerHp -= dmg
+    }
+
+    if (attackerHp <= 0) {
+      lines.push(`\n💀 ${userName}이(가) 쓰러졌다!`)
+      rounds.push({ text: lines, attackerHp: 0, defenderHp, finished: true })
+      break
+    }
+
+    rounds.push({
+      text: lines,
+      attackerHp,
+      defenderHp,
+      finished: round === 3,
+    })
+  }
+
+  return rounds
+}
+
 export async function execute(interaction: ChatInputCommandInteraction) {
   const target = interaction.options.getUser('target', true)
   const user = interaction.user
@@ -76,7 +161,6 @@ export async function execute(interaction: ChatInputCommandInteraction) {
   const attacker = getOrCreatePlayer(user.id, guildId, user.username)
   const defender = getOrCreatePlayer(target.id, guildId, target.username)
 
-  // Check status effects
   if (hasEffect(user.id, guildId, 'stunned')) {
     await interaction.reply({ content: '😵 기절 상태에서는 전투할 수 없어요!' })
     return
@@ -86,91 +170,79 @@ export async function execute(interaction: ChatInputCommandInteraction) {
     return
   }
 
-  // Get equipped items
-  const attackerItem = getEquippedItem(user.id)
-  const defenderItem = getEquippedItem(target.id)
+  // Get effective stats (base + equipped item bonuses)
+  const atkStats = getEffectiveStats(user.id, guildId)
+  const defStats = getEffectiveStats(target.id, guildId)
 
-  const atkBonus = attackerItem?.attack_bonus ?? 0
-  const defBonus = defenderItem?.defense_bonus ?? 0
-  const critBonus = attackerItem?.crit_bonus ?? 0
+  // ── Phase 1: 전투 시작 연출 ──
+  const introEmbed = new EmbedBuilder()
+    .setColor(0x2c2f33)
+    .setTitle(`⚔️ ${user.username} vs ${target.username}`)
+    .setDescription(
+      `**전투 준비 중...**\n\n` +
+        `🔴 ${user.username} — HP: ${attacker.hp}/${atkStats.max_hp} | ⚔️${atkStats.attack} 🛡️${atkStats.defense}` +
+        (atkStats.equippedItem
+          ? ` | ${atkStats.equippedItem.item_emoji} ${atkStats.equippedItem.item_name}`
+          : '') +
+        `\n🔵 ${target.username} — HP: ${defender.hp}/${defStats.max_hp} | ⚔️${defStats.attack} 🛡️${defStats.defense}` +
+        (defStats.equippedItem
+          ? ` | ${defStats.equippedItem.item_emoji} ${defStats.equippedItem.item_name}`
+          : ''),
+    )
+  await interaction.reply({ embeds: [introEmbed] })
 
-  // Battle simulation (3 rounds)
-  const log: string[] = []
-  let attackerHp = attacker.hp
-  let defenderHp = defender.hp
+  await sleep(2000)
 
-  for (let round = 1; round <= 3; round++) {
-    log.push(`\n**━━━ 라운드 ${round} ━━━**`)
+  // Pre-compute all rounds
+  const rounds = simulateBattle(
+    user.username,
+    target.username,
+    atkStats,
+    defStats,
+    attacker.hp,
+    defender.hp,
+  )
 
-    // Attacker's turn
-    const atkEvade = chance(defender.evasion * 100)
-    if (atkEvade) {
-      log.push(`🎯 ${user.username}이(가) ${pick(attackVerbs)}!`)
-      log.push(`💨 ${target.username}이(가) ${pick(dodgeMessages)}`)
-    } else {
-      const isCrit = chance((attacker.crit_rate + critBonus) * 100)
-      let dmg = random(
-        Math.max(1, attacker.attack + atkBonus - defender.defense - defBonus),
-        attacker.attack + atkBonus + 5,
-      )
-      if (isCrit) {
-        dmg = Math.floor(dmg * 2)
-        log.push(`⚔️ ${user.username}이(가) ${pick(attackVerbs)}!`)
-        log.push(`${pick(critMessages)}`)
-        log.push(`🩸 ${target.username} HP -${dmg}!`)
-      } else {
-        log.push(`⚔️ ${user.username}이(가) ${pick(attackVerbs)}!`)
-        log.push(`🩸 ${target.username} HP -${dmg}`)
-      }
-      defenderHp -= dmg
-    }
+  // ── Phase 2+: 라운드별 공개 ──
+  const allLines: string[] = []
 
-    if (defenderHp <= 0) {
-      log.push(`\n💀 ${target.username}이(가) 쓰러졌다!`)
-      break
-    }
+  for (let i = 0; i < rounds.length; i++) {
+    const round = rounds[i]
+    allLines.push(`\n**━━━ 라운드 ${i + 1} ━━━**`)
+    allLines.push(...round.text)
 
-    // Defender's turn
-    const defEvade = chance(attacker.evasion * 100)
-    if (defEvade) {
-      log.push(`🎯 ${target.username}이(가) ${pick(attackVerbs)}!`)
-      log.push(`💨 ${user.username}이(가) ${pick(dodgeMessages)}`)
-    } else {
-      const isCrit = chance(defender.crit_rate * 100)
-      let dmg = random(
-        Math.max(1, defender.attack - attacker.attack),
-        defender.attack + 5,
-      )
-      if (isCrit) {
-        dmg = Math.floor(dmg * 2)
-        log.push(`⚔️ ${target.username}이(가) 반격! ${pick(attackVerbs)}!`)
-        log.push(`${pick(critMessages)}`)
-        log.push(`🩸 ${user.username} HP -${dmg}!`)
-      } else {
-        log.push(`⚔️ ${target.username}이(가) 반격! ${pick(attackVerbs)}!`)
-        log.push(`🩸 ${user.username} HP -${dmg}`)
-      }
-      attackerHp -= dmg
-    }
+    const hpStatus =
+      `\n🔴 ${user.username}: ${Math.max(0, round.attackerHp)} HP` +
+      `  |  🔵 ${target.username}: ${Math.max(0, round.defenderHp)} HP`
+    allLines.push(hpStatus)
 
-    if (attackerHp <= 0) {
-      log.push(`\n💀 ${user.username}이(가) 쓰러졌다!`)
-      break
+    const roundEmbed = new EmbedBuilder()
+      .setColor(0xff6b00)
+      .setTitle(`⚔️ ${user.username} vs ${target.username}`)
+      .setDescription(allLines.join('\n'))
+
+    await interaction.editReply({ embeds: [roundEmbed] })
+
+    if (!round.finished) {
+      await sleep(2500)
     }
   }
 
-  // Determine winner
+  await sleep(1500)
+
+  // ── Phase 3: 최종 결과 ──
+  const lastRound = rounds[rounds.length - 1]
   let winnerId: string | null = null
   let loserId: string | null = null
-  if (defenderHp <= 0) {
+
+  if (lastRound.defenderHp <= 0) {
     winnerId = user.id
     loserId = target.id
-  } else if (attackerHp <= 0) {
+  } else if (lastRound.attackerHp <= 0) {
     winnerId = target.id
     loserId = user.id
   } else {
-    // Whoever has more HP remaining wins
-    if (attackerHp >= defenderHp) {
+    if (lastRound.attackerHp >= lastRound.defenderHp) {
       winnerId = user.id
       loserId = target.id
     } else {
@@ -187,29 +259,35 @@ export async function execute(interaction: ChatInputCommandInteraction) {
     addGold(winnerId, guildId, goldReward)
     logBattle(guildId, user.id, target.id, winnerId, xpReward, goldReward)
 
-    // Apply real damage
-    damagePlayer(user.id, guildId, Math.max(0, attacker.hp - attackerHp))
-    damagePlayer(target.id, guildId, Math.max(0, defender.hp - defenderHp))
+    damagePlayer(
+      user.id,
+      guildId,
+      Math.max(0, attacker.hp - Math.max(0, lastRound.attackerHp)),
+    )
+    damagePlayer(
+      target.id,
+      guildId,
+      Math.max(0, defender.hp - Math.max(0, lastRound.defenderHp)),
+    )
 
-    // Loser gets stunned
     if (loserId) {
       applyStatusEffect(loserId, guildId, 'stunned', 10, winnerId)
     }
 
     const winnerName = winnerId === user.id ? user.username : target.username
 
-    log.push(`\n🏆 **${winnerName} 승리!**`)
-    log.push(`✨ XP +${xpReward} | 💰 +${goldReward}G`)
+    allLines.push(`\n\n🏆 **${winnerName} 승리!**`)
+    allLines.push(`✨ XP +${xpReward} | 💰 +${goldReward}G`)
     if (leveledUp) {
-      log.push(`🎉 **레벨 업!!!**`)
+      allLines.push(`🎉 **레벨 업!!!**`)
     }
   }
 
-  const embed = new EmbedBuilder()
+  const finalEmbed = new EmbedBuilder()
     .setColor(winnerId === user.id ? 0x2ecc71 : 0xe74c3c)
-    .setTitle(`⚔️ ${user.username} vs ${target.username}`)
-    .setDescription(log.join('\n'))
+    .setTitle(`⚔️ ${user.username} vs ${target.username} — 결과`)
+    .setDescription(allLines.join('\n'))
     .setTimestamp()
 
-  await interaction.reply({ embeds: [embed] })
+  await interaction.editReply({ embeds: [finalEmbed] })
 }

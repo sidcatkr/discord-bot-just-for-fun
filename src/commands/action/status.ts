@@ -6,6 +6,7 @@ import {
 import {
   getOrCreatePlayer,
   getActiveEffects,
+  getEffectiveStats,
   type EffectType,
 } from '../../db/helpers.js'
 
@@ -31,18 +32,36 @@ export async function execute(interaction: ChatInputCommandInteraction) {
 
   const player = getOrCreatePlayer(target.id, guildId, target.username)
   const effects = getActiveEffects(target.id, guildId)
+  const effective = getEffectiveStats(target.id, guildId)
 
-  const hpBar = makeHpBar(player.hp, player.max_hp)
+  const hpBar = makeHpBar(player.hp, effective.max_hp)
   const xpBar = makeXpBar(player.xp, player.level * 100)
 
+  const atkText =
+    effective.attack !== player.attack
+      ? `${player.attack} (+${effective.attack - player.attack})`
+      : `${player.attack}`
+  const defText =
+    effective.defense !== player.defense
+      ? `${player.defense} (+${effective.defense - player.defense})`
+      : `${player.defense}`
+  const critText =
+    effective.crit_rate !== player.crit_rate
+      ? `${(player.crit_rate * 100).toFixed(0)}% (+${((effective.crit_rate - player.crit_rate) * 100).toFixed(0)}%)`
+      : `${(player.crit_rate * 100).toFixed(0)}%`
+  const hpMaxText =
+    effective.max_hp !== player.max_hp
+      ? `${player.hp}/${player.max_hp} (+${effective.max_hp - player.max_hp})`
+      : `${player.hp}/${player.max_hp}`
+
   const embed = new EmbedBuilder()
-    .setColor(player.hp > player.max_hp * 0.3 ? 0x2ecc71 : 0xe74c3c)
+    .setColor(player.hp > effective.max_hp * 0.3 ? 0x2ecc71 : 0xe74c3c)
     .setTitle(`📊 ${target.username}의 상태`)
     .setThumbnail(target.displayAvatarURL())
     .addFields(
       {
         name: '❤️ HP',
-        value: `${hpBar} ${player.hp}/${player.max_hp}`,
+        value: `${hpBar} ${hpMaxText}`,
         inline: false,
       },
       {
@@ -57,17 +76,17 @@ export async function execute(interaction: ChatInputCommandInteraction) {
       },
       {
         name: '⚔️ 공격력',
-        value: `${player.attack}`,
+        value: atkText,
         inline: true,
       },
       {
         name: '🛡️ 방어력',
-        value: `${player.defense}`,
+        value: defText,
         inline: true,
       },
       {
         name: '🎯 크리티컬',
-        value: `${(player.crit_rate * 100).toFixed(0)}%`,
+        value: critText,
         inline: true,
       },
       {
@@ -81,6 +100,14 @@ export async function execute(interaction: ChatInputCommandInteraction) {
         inline: true,
       },
     )
+
+  if (effective.equippedItem) {
+    embed.addFields({
+      name: '🗡️ 장착 아이템',
+      value: `${effective.equippedItem.item_emoji} ${effective.equippedItem.item_name}`,
+      inline: true,
+    })
+  }
 
   if (effects.length > 0) {
     const effectList = effects

@@ -367,3 +367,34 @@ export function chance(percent: number): boolean {
 export function pick<T>(arr: T[]): T {
   return arr[Math.floor(Math.random() * arr.length)]
 }
+
+export function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms))
+}
+
+// ──────────────────────────────────────
+//  Effective Stats (with equipped item)
+// ──────────────────────────────────────
+
+export interface EffectiveStats {
+  attack: number
+  defense: number
+  max_hp: number
+  crit_rate: number
+  evasion: number
+  equippedItem: InventoryItem | undefined
+}
+
+export function getEffectiveStats(userId: string, guildId: string): EffectiveStats {
+  const player = getOrCreatePlayer(userId, guildId, '')
+  const item = getEquippedItem(userId)
+
+  return {
+    attack: player.attack + (item?.attack_bonus ?? 0),
+    defense: player.defense + (item?.defense_bonus ?? 0),
+    max_hp: player.max_hp + (item?.hp_bonus ?? 0),
+    crit_rate: player.crit_rate + (item?.crit_bonus ?? 0),
+    evasion: player.evasion,
+    equippedItem: item,
+  }
+}
