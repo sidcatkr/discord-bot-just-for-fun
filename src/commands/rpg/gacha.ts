@@ -312,11 +312,11 @@ export async function execute(interaction: ChatInputCommandInteraction) {
     .setTitle('🎰 가챠 돌리는 중...')
     .setDescription(
       '```\n' +
-      '  ╔══════════════╗\n' +
-      '  ║  🎰 🎰 🎰   ║\n' +
-      '  ║   돌리는 중...  ║\n' +
-      '  ╚══════════════╝\n' +
-      '```',
+        '  ╔══════════════╗\n' +
+        '  ║  🎰 🎰 🎰   ║\n' +
+        '  ║   돌리는 중...  ║\n' +
+        '  ╚══════════════╝\n' +
+        '```',
     )
   await interaction.reply({ embeds: [embed1] })
 
@@ -337,11 +337,11 @@ export async function execute(interaction: ChatInputCommandInteraction) {
     .setTitle('🎰 가챠 돌리는 중...')
     .setDescription(
       '```\n' +
-      '  ╔══════════════╗\n' +
-      '  ║  ✨ ✨ ✨   ║\n' +
-      '  ║   빛이 난다...  ║\n' +
-      '  ╚══════════════╝\n' +
-      '```',
+        '  ╔══════════════╗\n' +
+        '  ║  ✨ ✨ ✨   ║\n' +
+        '  ║   빛이 난다...  ║\n' +
+        '  ╚══════════════╝\n' +
+        '```',
     )
   await interaction.editReply({ embeds: [embed2] })
 
@@ -373,8 +373,7 @@ export async function execute(interaction: ChatInputCommandInteraction) {
   if (item.attack > 0) stats.push(`⚔️ 공격력 +${item.attack}`)
   if (item.defense > 0) stats.push(`🛡️ 방어력 +${item.defense}`)
   if (item.hp > 0) stats.push(`❤️ HP +${item.hp}`)
-  if (item.crit > 0)
-    stats.push(`🎯 크리티컬 +${(item.crit * 100).toFixed(0)}%`)
+  if (item.crit > 0) stats.push(`🎯 크리티컬 +${(item.crit * 100).toFixed(0)}%`)
 
   const finalEmbed = new EmbedBuilder()
     .setColor(rarityColors[item.rarity])

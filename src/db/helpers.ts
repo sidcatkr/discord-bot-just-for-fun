@@ -385,7 +385,10 @@ export interface EffectiveStats {
   equippedItem: InventoryItem | undefined
 }
 
-export function getEffectiveStats(userId: string, guildId: string): EffectiveStats {
+export function getEffectiveStats(
+  userId: string,
+  guildId: string,
+): EffectiveStats {
   const player = getOrCreatePlayer(userId, guildId, '')
   const item = getEquippedItem(userId)
 
