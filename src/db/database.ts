@@ -1,11 +1,16 @@
 import Database from 'better-sqlite3'
+import fs from 'fs'
 import path from 'path'
 import { fileURLToPath } from 'url'
 
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
 
-const dbPath = path.join(__dirname, '..', '..', 'data.db')
+// Store DB in /app/data (Docker volume) or <project>/data locally
+const dataDir = path.join(__dirname, '..', '..', 'data')
+if (!fs.existsSync(dataDir)) fs.mkdirSync(dataDir, { recursive: true })
+
+const dbPath = path.join(dataDir, 'bot.db')
 const db = new Database(dbPath)
 
 // Enable WAL mode for better performance
