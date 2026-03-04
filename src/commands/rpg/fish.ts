@@ -35,8 +35,10 @@ import {
   rollFishingEvent,
   rollTrash,
   rollSeaMonster,
+  rollDangerousCatch,
   fishRarityLabels,
   fishRarityColors,
+  fishPool,
 } from '../../data/fish-data.js'
 
 export const data = new SlashCommandBuilder()
@@ -77,6 +79,18 @@ const fishingMessages = [
   '찌를 바라보니 인생이 보인다...',
   '"아 옛날에 이 자리에서 크라켄 잡았는데"  (거짓말)',
   '물고기한테 DM 보내고 싶다...',
+  `이 바다에는 ${fishPool.length.toLocaleString()}종의 물고기가 있다... 다 잡을 수 있을까?`,
+  '현생 도망치려고 낚시 시작했는데 낚시가 현생이 됐다...',
+  '물고기: "쟤 또 왔다" 🐟🐟🐟 (단체 카톡방)',
+  'Ctrl+Z로 인생 되돌리기 하고 싶다...',
+  '아무도 안 봤으면 좋겠다... 쓰레기 3연속 ㅠ',
+  '낚시 유튜브 광고: "이 미끼 쓰면 전설급 물고기가!" (거짓말입니다)',
+  '물고기가 내 미끼를 씹다가 뱉었다... 모욕적이다.',
+  '커피 마시러 갔다 와도 찌가 그대로일 듯...',
+  '바다 보면서 명상하는 중이라고 하겠습니다.',
+  '프로 낚시꾼 팁: 물고기한테 인사하면 잘 잡힌다 (아님)',
+  '물고기가 CCTV 보는 것처럼 미끼만 관찰하고 있다...',
+  '지금 이 순간에도 누군가는 신화급을 잡고 있다... (나 제외)',
 ]
 
 // Real bite messages — player SHOULD press the button
@@ -115,6 +129,12 @@ const fakeBiteMessages = [
   '🔔 바닷속에서 박수 소리가?!?!',
   '🔔 찌: (도발 모드) 흔들흔들~',
   '🔔 고래가 지나가면서 파도가 왔다!!',
+  '🔔 물고기가 찌에 낙서하고 갔다!!',
+  '🔔 지진이다!! 아니 옆사람이 점프했다!!',
+  '🔔 해적선이 지나간다!! (코스프레)',
+  '🔔 찌가 춤을 추고 있다!! (자기가 알아서)',
+  '🔔 인어가 손흔들고 갔다!! (환각)',
+  '🔔 물고기가 찌를 업어갔다가 돌려놓았다!!',
 ]
 
 // ── Weather system ──
@@ -442,6 +462,10 @@ async function handleCast(
       '반응속도 테스트 결과: 불합격 🐟💨',
       '물고기가 미끼를 뱉으면서 혀를 내밀었습니다 🐟👅',
       '물고기: "다음에 봐~" (안 볼 예정) 🐟💨',
+      '물고기가 미끼에 "구데타마" 얼굴을 새기고 갔습니다 🐟😐',
+      '물고기가 "느려~"라고 물거품으로 써놓고 갔습니다 🐟',
+      '물고기가 당신의 반응속도를 측정하고 F 등급을 매겼습니다 🐟📊',
+      '물고기: "3초 안에 안 당기면 도망갈거임" (0.5초 전에 도망감)',
     ]
     const missEmbed = new EmbedBuilder()
       .setColor(0xe74c3c)
@@ -461,7 +485,7 @@ async function handleCast(
   // ── Successfully pulled! Now resolve the event ──
   await interaction.editReply({ components: [] })
 
-  // ── TRASH EVENT ──
+  // ── TRASH EVENT (button-based disposal) ──
   if (event.type === 'trash') {
     const trash = rollTrash()
 
@@ -472,6 +496,29 @@ async function handleCast(
       pollution_amount: trash.pollutionAmount,
     })
 
+    const trashButtonId = `trash_${user.id}_${Date.now()}`
+    const disposeButton = new ButtonBuilder()
+      .setCustomId(`${trashButtonId}_dispose`)
+      .setLabel(`♻️ 처리하기 (-${trash.disposalCost}G)`)
+      .setStyle(ButtonStyle.Success)
+    const dumpButton = new ButtonBuilder()
+      .setCustomId(`${trashButtonId}_dump`)
+      .setLabel('💀 바다에 버리기')
+      .setStyle(ButtonStyle.Danger)
+    const trashRow = new ActionRowBuilder<ButtonBuilder>().addComponents(
+      disposeButton,
+      dumpButton,
+    )
+
+    const trashJokes = [
+      '환경부에서 지켜보고 있습니다... 👀',
+      '그린피스가 전화를 걸어오고 있습니다...',
+      '물고기: "우리 집에 쓰레기 좀 버리지 마세요" 🐟',
+      '해양경찰이 쌍안경으로 보고 있습니다... 🔭',
+      '쓰레기도 낚는 실력... 대단합니다.',
+      '이걸 물고기라고 낚은 건가... 쓰레기라고 낚은 건가...',
+    ]
+
     const trashEmbed = new EmbedBuilder()
       .setColor(0x95a5a6)
       .setTitle('🗑️ 쓰레기를 낚았다...')
@@ -480,15 +527,171 @@ async function handleCast(
           `> *${trash.description}*\n\n` +
           `처리 비용: **${trash.disposalCost}G** 💰\n` +
           `오염도: **+${trash.pollutionAmount}** 🏭\n\n` +
-          `📌 **선택지:**\n` +
-          `\`/fish action:🗑️ 쓰레기 처리\` — 비용을 내고 처리 (환경 보호!)\n` +
-          `\`/fish action:💀 바다에 버리기\` — 바다에 버리기 (수질 오염 증가!)`,
+          `> 💡 *${pick(trashJokes)}*\n\n` +
+          `**어떻게 하시겠습니까?**`,
       )
       .setFooter({
         text: `🏝️ ${island.island_name} | 수질 오염도: ${currentPollution.pollution_level.toFixed(1)}/10`,
       })
       .setTimestamp()
-    await interaction.editReply({ embeds: [trashEmbed] })
+    await interaction.editReply({
+      embeds: [trashEmbed],
+      components: [trashRow],
+    })
+
+    // Wait for button press (15 second window)
+    try {
+      const trashCollector = await interaction.channel?.awaitMessageComponent({
+        componentType: ComponentType.Button,
+        filter: (i) =>
+          (i.customId === `${trashButtonId}_dispose` ||
+            i.customId === `${trashButtonId}_dump`) &&
+          i.user.id === user.id,
+        time: 15000,
+      })
+
+      if (trashCollector) {
+        await trashCollector.deferUpdate()
+
+        if (trashCollector.customId === `${trashButtonId}_dispose`) {
+          // ─ Dispose properly ─
+          const player = getOrCreatePlayer(user.id, guildId, user.username)
+          if (player.gold < trash.disposalCost) {
+            const brokeEmbed = new EmbedBuilder()
+              .setColor(0xe74c3c)
+              .setTitle('💸 골드 부족!')
+              .setDescription(
+                `처리 비용 **${trash.disposalCost}G**가 필요합니다!\n보유 골드: **${player.gold}G**\n\n` +
+                  `쓰레기가 인벤토리에 보관됩니다.\n\`/fish action:🗑️ 쓰레기 처리\`로 나중에 처리하세요.`,
+              )
+              .setTimestamp()
+            await interaction.editReply({
+              embeds: [brokeEmbed],
+              components: [],
+            })
+          } else {
+            addGold(user.id, guildId, -trash.disposalCost)
+            reducePollution(user.id, guildId, trash.pollutionAmount * 0.5)
+            addIslandXp(user.id, guildId, 5)
+            removeAllTrashByUser(user.id, guildId) // remove the one we just added
+
+            const disposeEmbed = new EmbedBuilder()
+              .setColor(0x2ecc71)
+              .setTitle('♻️ 쓰레기 처리 완료!')
+              .setDescription(
+                `${trash.emoji} **${trash.name}** 처리 완료!\n\n` +
+                  `💰 처리 비용: **-${trash.disposalCost}G**\n` +
+                  `🌊 수질 개선: **-${(trash.pollutionAmount * 0.5).toFixed(1)}**\n` +
+                  `🏝️ 환경 보호 XP: **+5**\n\n` +
+                  `> *바다가 조금 더 깨끗해졌습니다!* 🐟\n` +
+                  `> *물고기들이 고마워하고 있습니다* 🐠💕`,
+              )
+              .setFooter({ text: `🏝️ ${island.island_name}` })
+              .setTimestamp()
+            await interaction.editReply({
+              embeds: [disposeEmbed],
+              components: [],
+            })
+          }
+        } else {
+          // ─ Dump into ocean ─
+          addPollution(user.id, guildId, trash.pollutionAmount)
+          removeAllTrashByUser(user.id, guildId) // remove from inventory since dumped
+
+          const updatedPollution = getOrCreatePollution(user.id, guildId)
+          const dumpJokes = [
+            '물고기들이 이사 준비를 시작했습니다... 🐟📦',
+            '해양경찰에 신고가 접수되었습니다 🚔 (농담)',
+            '그레타 툰베리가 실망했습니다...',
+            '물고기: "진짜 이러실 거예요?" 🐟😠',
+            '바다가 울고 있습니다... 🌊😢',
+          ]
+
+          const dumpEmbed = new EmbedBuilder()
+            .setColor(0xe74c3c)
+            .setTitle('💀 쓰레기 불법 투기!')
+            .setDescription(
+              `${trash.emoji} → 🌊\n\n` +
+                `🏭 수질 오염 증가: **+${trash.pollutionAmount}**\n` +
+                `🌊 현재 오염도: **${updatedPollution.pollution_level.toFixed(1)}/10**\n\n` +
+                `> *${pick(dumpJokes)}*\n\n` +
+                `💡 수질 관리 시설을 지으면 자동으로 오염이 줄어듭니다!`,
+            )
+            .setFooter({ text: `🏝️ ${island.island_name}` })
+            .setTimestamp()
+          await interaction.editReply({ embeds: [dumpEmbed], components: [] })
+        }
+      }
+    } catch {
+      // Timeout — trash stays in inventory
+      const timeoutEmbed = new EmbedBuilder()
+        .setColor(0x95a5a6)
+        .setTitle('🗑️ 쓰레기 보관 중...')
+        .setDescription(
+          `결정을 안 하셔서 쓰레기가 인벤토리에 보관됩니다.\n` +
+            `\`/fish action:🗑️ 쓰레기 처리\` 또는 \`/fish action:💀 바다에 버리기\`로 나중에 처리하세요.`,
+        )
+        .setTimestamp()
+      await interaction.editReply({ embeds: [timeoutEmbed], components: [] })
+    }
+    return
+  }
+
+  // ── DANGEROUS CATCH EVENT ──
+  if (event.type === 'dangerous') {
+    const danger = rollDangerousCatch()
+    const player = getOrCreatePlayer(user.id, guildId, user.username)
+
+    const dangerIntros = [
+      '뭔가... 이상하다... 이게 물고기가 아닌데??',
+      '낚싯줄을 당겼더니 이상한 게 올라온다!',
+      '잠깐, 이건 물고기가 아니라—',
+      '찌를 올렸는데... 응??? 🤨',
+      '축하합니다! 당신은 물고기 대신 죽음을 낚았습니다!',
+    ]
+
+    if (danger.damage === 0) {
+      // Instant kill
+      damagePlayer(user.id, guildId, player.hp)
+      if (danger.goldLoss > 0) addGold(user.id, guildId, -danger.goldLoss)
+
+      const deathEmbed = new EmbedBuilder()
+        .setColor(0x000000)
+        .setTitle(`${danger.emoji} ${danger.name} — 즉사!!!`)
+        .setDescription(
+          `> *${pick(dangerIntros)}*\n\n` +
+            `${danger.emoji} **${danger.name}!!**\n\n` +
+            `${danger.deathMessage}\n\n` +
+            `💀 **HP: ${player.hp} → 0**\n` +
+            `${danger.goldLoss > 0 ? `💸 **-${danger.goldLoss}G**\n` : ''}` +
+            `\n> *\`/heal\`로 부활하세요...*`,
+        )
+        .setFooter({
+          text: `🏝️ ${island.island_name} | 사인: ${danger.name}에 의한 사망`,
+        })
+        .setTimestamp()
+      await interaction.editReply({ embeds: [deathEmbed] })
+    } else {
+      // Partial damage
+      damagePlayer(user.id, guildId, danger.damage)
+      if (danger.goldLoss > 0) addGold(user.id, guildId, -danger.goldLoss)
+
+      const newHp = Math.max(0, player.hp - danger.damage)
+      const hurtEmbed = new EmbedBuilder()
+        .setColor(0xe74c3c)
+        .setTitle(`${danger.emoji} ${danger.name}!!`)
+        .setDescription(
+          `> *${pick(dangerIntros)}*\n\n` +
+            `${danger.emoji} **${danger.name}!!**\n\n` +
+            `${danger.deathMessage}\n\n` +
+            `🩸 **HP: ${player.hp} → ${newHp}** (-${danger.damage})\n` +
+            `${danger.goldLoss > 0 ? `💸 **-${danger.goldLoss}G**\n` : ''}` +
+            `${newHp <= 0 ? '\n💀 **사망했습니다!** `/heal`로 부활하세요.' : '\n⚠️ *살아남았지만 많이 다쳤습니다...*'}`,
+        )
+        .setFooter({ text: `🏝️ ${island.island_name}` })
+        .setTimestamp()
+      await interaction.editReply({ embeds: [hurtEmbed] })
+    }
     return
   }
 

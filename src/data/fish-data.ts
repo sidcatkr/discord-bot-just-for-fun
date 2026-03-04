@@ -26,6 +26,7 @@ export type FishingEventType =
   | 'storm'
   | 'treasure'
   | 'sea_monster'
+  | 'dangerous'
 
 export interface FishingEvent {
   type: FishingEventType
@@ -238,7 +239,7 @@ export const trashPool: TrashType[] = [
 //  FISH DATA — 200+ species
 // ══════════════════════════════════════
 
-export const fishPool: FishType[] = [
+const handcraftedFish: FishType[] = [
   // ═══════════════════════════════════
   //  COMMON (40 species)
   // ═══════════════════════════════════
@@ -1851,6 +1852,674 @@ export const fishPool: FishType[] = [
 ]
 
 // ══════════════════════════════════════
+//  DANGEROUS CATCHES (damage or kill player)
+// ══════════════════════════════════════
+
+export interface DangerousCatch {
+  name: string
+  emoji: string
+  damage: number // 0 = instant kill, >0 = specific damage
+  goldLoss: number // gold lost
+  description: string
+  deathMessage: string
+}
+
+export const dangerousCatches: DangerousCatch[] = [
+  {
+    name: '광대버섯',
+    emoji: '🍄',
+    damage: 0,
+    goldLoss: 0,
+    description: '화려한 색의 독버섯이 낚싯줄에 걸려왔다!',
+    deathMessage:
+      '광대버섯을 먹어버렸습니다... 🍄💀\n영혼이 무지개빛으로 빛나며 승천합니다.',
+  },
+  {
+    name: '다이너마이트',
+    emoji: '🧨',
+    damage: 0,
+    goldLoss: 100,
+    description: '낚싯줄에 뭔가... 빨간 것이?!',
+    deathMessage:
+      '다이너마이트가 터졌습니다!!! 💥💀\n반경 10m가 초토화되었습니다. 물고기도 같이 죽었습니다.',
+  },
+  {
+    name: '저주받은 인형',
+    emoji: '🪆',
+    damage: 0,
+    goldLoss: 0,
+    description: '깊은 바다에서 인형이 올라왔다... 눈이 움직인다!',
+    deathMessage:
+      '인형이 당신을 쳐다봅니다... "같이 놀자..." 🪆💀\n당신의 영혼이 인형에 봉인되었습니다.',
+  },
+  {
+    name: '세금 고지서',
+    emoji: '📋',
+    damage: 30,
+    goldLoss: 500,
+    description: '국세청에서 날아온 세금 고지서!!',
+    deathMessage:
+      '밀린 세금 500G가 자동 납부되었습니다... 📋💸\n정신적 데미지가 심각합니다.',
+  },
+  {
+    name: '폭탄',
+    emoji: '💣',
+    damage: 0,
+    goldLoss: 50,
+    description: '째깍째깍... 3초 남았다!!!',
+    deathMessage:
+      '💣💥 BOOM! 낚싯대와 함께 산산조각!\n본인 과실이므로 보험 적용 불가합니다.',
+  },
+  {
+    name: '복어 독',
+    emoji: '🐡',
+    damage: 80,
+    goldLoss: 0,
+    description: '복어가 터지면서 독이 퍼졌다!',
+    deathMessage:
+      '테트로도톡신에 중독되었습니다! 🐡☠️\n혀가 마비됩니다... 구급차를 불러주세요...',
+  },
+  {
+    name: '전 여친/남친의 편지',
+    emoji: '💌',
+    damage: 50,
+    goldLoss: 0,
+    description: '바다에서 편지가 올라왔다... 읽으면 안 되는데...',
+    deathMessage:
+      '"우리 그때 왜 헤어졌을까..." 💌😭\n정신적 데미지 50! 눈물이 멈추지 않습니다.',
+  },
+  {
+    name: '해파리 떼',
+    emoji: '🪼',
+    damage: 60,
+    goldLoss: 0,
+    description: '해파리 떼가 낚싯줄을 타고 올라온다!',
+    deathMessage:
+      '해파리에 온몸이 쏘였습니다! 🪼⚡\n따끔따끔... 아프지만 죽지는 않았습니다.',
+  },
+  {
+    name: '고대 지뢰',
+    emoji: '💥',
+    damage: 0,
+    goldLoss: 200,
+    description: '녹슨 금속 물체가... 잠깐, 이거 지뢰 아닌가?!',
+    deathMessage:
+      '6.25 때 매설된 지뢰가 폭발했습니다! 💥💀\n역사적 유물이었지만 당신의 HP도 역사가 되었습니다.',
+  },
+  {
+    name: '유독성 해삼',
+    emoji: '🫠',
+    damage: 40,
+    goldLoss: 0,
+    description: '이상하게 생긴 해삼이 독성 물질을 뿜고 있다!',
+    deathMessage: '독성 해삼의 내장을 맞았습니다! 🫠\n얼굴이 부어오릅니다...',
+  },
+  {
+    name: '카드값 청구서',
+    emoji: '💳',
+    damage: 70,
+    goldLoss: 300,
+    description: '물 위에 뭔가 떠다닌다... 이번 달 카드값!',
+    deathMessage: '이번 달 카드값: 300G 💳💸\n현실의 공포에 HP가 급감합니다.',
+  },
+  {
+    name: '방사능 폐기물',
+    emoji: '☢️',
+    damage: 0,
+    goldLoss: 0,
+    description: '형광빛 드럼통이 올라왔다... 체르노빌 느낌?',
+    deathMessage:
+      '방사능에 노출되었습니다! ☢️💀\n당신은 이제 밤에 빛납니다. (더 이상 낚시 못함)',
+  },
+]
+
+export function rollDangerousCatch(): DangerousCatch {
+  return dangerousCatches[Math.floor(Math.random() * dangerousCatches.length)]
+}
+
+// ══════════════════════════════════════
+//  TEMPLATE-BASED FISH GENERATION (~30,000 species)
+// ══════════════════════════════════════
+
+type FishCategory = FishType['category']
+type FishRarity = FishType['rarity']
+
+interface FishTemplateBase {
+  name: string
+  emoji: string
+  category: FishCategory
+}
+
+interface FishTemplate {
+  prefixes: string[]
+  bases: FishTemplateBase[]
+  suffixes: string[]
+}
+
+const fishStatRanges: Record<
+  FishRarity,
+  {
+    minSize: [number, number]
+    maxSize: [number, number]
+    baseValue: [number, number]
+  }
+> = {
+  common: { minSize: [2, 15], maxSize: [8, 40], baseValue: [1, 3] },
+  uncommon: { minSize: [5, 25], maxSize: [15, 80], baseValue: [4, 10] },
+  rare: { minSize: [10, 60], maxSize: [30, 250], baseValue: [8, 20] },
+  epic: { minSize: [15, 120], maxSize: [50, 600], baseValue: [12, 40] },
+  legendary: { minSize: [10, 200], maxSize: [30, 2000], baseValue: [30, 120] },
+  mythic: { minSize: [1, 500], maxSize: [1, 99999], baseValue: [500, 15000] },
+}
+
+const fishDescTemplates: Record<FishCategory, string[]> = {
+  freshwater: [
+    '맑은 계곡에 사는 민물고기',
+    '강에서 발견되는 담수어',
+    '호수의 터줏대감',
+    '한국 하천에서 볼 수 있는 물고기',
+    '개울에서 노는 작은 물고기',
+    '저수지에 사는 민물고기',
+    '댐 근처에서 잡히는 담수어',
+    '논두렁 옆 수로에 사는 물고기',
+  ],
+  saltwater: [
+    '바다에서 잡히는 해수어',
+    '연안에서 볼 수 있는 물고기',
+    '깊은 바다의 거주자',
+    '조류를 타고 다니는 해양 어류',
+    '암초 근처에 사는 바다 물고기',
+    '방파제 근처에서 자주 보이는 물고기',
+    '동해안에서 주로 잡히는 어류',
+    '남해에서 볼 수 있는 바다 물고기',
+  ],
+  deep_sea: [
+    '심해에서 발견된 희귀 어종',
+    '빛이 닿지 않는 깊은 곳의 물고기',
+    '심해 열수구 근처에 사는 어류',
+    '수압을 견디는 심해 생물',
+    '어둠 속에서 빛나는 심해어',
+    '해저 협곡에 사는 미지의 어류',
+    '수심 1000m 이하에서 발견된 물고기',
+    '마리아나 해구 근처의 생물',
+  ],
+  tropical: [
+    '열대 바다의 화려한 물고기',
+    '산호초 사이를 헤엄치는 열대어',
+    '아마존 강에 사는 열대 담수어',
+    '동남아 수역의 관상어',
+    '따뜻한 바다의 화려한 물고기',
+    '열대우림 강에 사는 희귀한 어류',
+    '카리브해의 형형색색 물고기',
+    '인도양의 아름다운 열대어',
+  ],
+  mythical: [
+    '전설 속에만 존재하던 물고기',
+    '고대 문헌에 기록된 신비의 존재',
+    '신화 속 바다의 수호자',
+    '차원의 틈새에서 건너온 존재',
+    '시공을 초월한 생명체',
+    '꿈에서만 볼 수 있던 존재가 현실에',
+    '고대 용왕의 어항에서 탈출한 물고기',
+    '우주의 심연에서 온 미지의 생물',
+  ],
+}
+
+// ── Common fish template: 30 prefixes × 50 bases × 10 suffixes = 15,000 ──
+const commonFishTemplate: FishTemplate = {
+  prefixes: [
+    '작은',
+    '큰',
+    '통통한',
+    '마른',
+    '날씬한',
+    '졸린',
+    '배고픈',
+    '행복한',
+    '느긋한',
+    '빠른',
+    '게으른',
+    '부지런한',
+    '소심한',
+    '용감한',
+    '동해산',
+    '남해산',
+    '서해산',
+    '제주산',
+    '한강',
+    '낙동강',
+    '홍천',
+    '양평',
+    '시골',
+    '도시',
+    '양식',
+    '자연산',
+    '야생',
+    '토종',
+    '잡종',
+    '흔한',
+  ],
+  bases: [
+    // 담수어 23종
+    { name: '붕어', emoji: '🐟', category: 'freshwater' },
+    { name: '잉어', emoji: '🐟', category: 'freshwater' },
+    { name: '미꾸라지', emoji: '🐍', category: 'freshwater' },
+    { name: '피라미', emoji: '🐠', category: 'freshwater' },
+    { name: '송사리', emoji: '🐟', category: 'freshwater' },
+    { name: '빙어', emoji: '🐟', category: 'freshwater' },
+    { name: '버들치', emoji: '🐟', category: 'freshwater' },
+    { name: '갈겨니', emoji: '🐟', category: 'freshwater' },
+    { name: '참마자', emoji: '🐟', category: 'freshwater' },
+    { name: '돌마자', emoji: '🐟', category: 'freshwater' },
+    { name: '떡붕어', emoji: '🐟', category: 'freshwater' },
+    { name: '누치', emoji: '🐟', category: 'freshwater' },
+    { name: '모래무지', emoji: '🐟', category: 'freshwater' },
+    { name: '돌고기', emoji: '🐟', category: 'freshwater' },
+    { name: '각시붕어', emoji: '🐠', category: 'freshwater' },
+    { name: '가시고기', emoji: '🐟', category: 'freshwater' },
+    { name: '참종개', emoji: '🐟', category: 'freshwater' },
+    { name: '미호종개', emoji: '🐟', category: 'freshwater' },
+    { name: '쌀미꾸리', emoji: '🐍', category: 'freshwater' },
+    { name: '기름종개', emoji: '🐟', category: 'freshwater' },
+    { name: '왕종개', emoji: '🐟', category: 'freshwater' },
+    { name: '참붕어', emoji: '🐟', category: 'freshwater' },
+    { name: '큰가시고기', emoji: '🐟', category: 'freshwater' },
+    // 해수어 18종
+    { name: '멸치', emoji: '🐟', category: 'saltwater' },
+    { name: '고등어', emoji: '🐟', category: 'saltwater' },
+    { name: '꽁치', emoji: '🐟', category: 'saltwater' },
+    { name: '전갱이', emoji: '🐟', category: 'saltwater' },
+    { name: '전어', emoji: '🐟', category: 'saltwater' },
+    { name: '볼락', emoji: '🐟', category: 'saltwater' },
+    { name: '노래미', emoji: '🐟', category: 'saltwater' },
+    { name: '쥐노래미', emoji: '🐟', category: 'saltwater' },
+    { name: '보리멸', emoji: '🐟', category: 'saltwater' },
+    { name: '망상어', emoji: '🐟', category: 'saltwater' },
+    { name: '쏨뱅이', emoji: '🐟', category: 'saltwater' },
+    { name: '가자미', emoji: '🐟', category: 'saltwater' },
+    { name: '서대', emoji: '🐟', category: 'saltwater' },
+    { name: '쥐치', emoji: '🐟', category: 'saltwater' },
+    { name: '양태', emoji: '🐟', category: 'saltwater' },
+    { name: '까나리', emoji: '🐟', category: 'saltwater' },
+    { name: '도루묵', emoji: '🐟', category: 'saltwater' },
+    { name: '임연수어', emoji: '🐟', category: 'saltwater' },
+    // 열대어 9종
+    { name: '구피', emoji: '🐠', category: 'tropical' },
+    { name: '네온테트라', emoji: '🐠', category: 'tropical' },
+    { name: '몰리', emoji: '🐠', category: 'tropical' },
+    { name: '플래티', emoji: '🐠', category: 'tropical' },
+    { name: '코리도라스', emoji: '🐟', category: 'tropical' },
+    { name: '제브라다니오', emoji: '🐠', category: 'tropical' },
+    { name: '소드테일', emoji: '🐠', category: 'tropical' },
+    { name: '라스보라', emoji: '🐠', category: 'tropical' },
+    { name: '체리바브', emoji: '🐠', category: 'tropical' },
+  ],
+  suffixes: [
+    '',
+    '',
+    '(I)',
+    '(II)',
+    '(♂)',
+    '(♀)',
+    '(야행성)',
+    '(주행성)',
+    '(변종)',
+    '(아종)',
+  ],
+}
+
+// ── Uncommon fish template: 25 prefixes × 40 bases × 8 suffixes = 8,000 ──
+const uncommonFishTemplate: FishTemplate = {
+  prefixes: [
+    '강화된',
+    '은빛',
+    '금빛',
+    '빛나는',
+    '튼튼한',
+    '날렵한',
+    '점박이',
+    '줄무늬',
+    '얼룩',
+    '거대한',
+    '민첩한',
+    '야행성',
+    '심해',
+    '연안',
+    '개량종',
+    '무지개빛',
+    '에메랄드빛',
+    '루비빛',
+    '사파이어빛',
+    '최상급',
+    '프리미엄',
+    '청정',
+    '유기농',
+    '명품',
+    '특대형',
+  ],
+  bases: [
+    // 담수 15종
+    { name: '쏘가리', emoji: '🐟', category: 'freshwater' },
+    { name: '메기', emoji: '🐟', category: 'freshwater' },
+    { name: '가물치', emoji: '🐟', category: 'freshwater' },
+    { name: '무지개송어', emoji: '🐠', category: 'freshwater' },
+    { name: '산천어', emoji: '🐟', category: 'freshwater' },
+    { name: '쉬리', emoji: '🐟', category: 'freshwater' },
+    { name: '꾸구리', emoji: '🐟', category: 'freshwater' },
+    { name: '어름치', emoji: '🐟', category: 'freshwater' },
+    { name: '황어', emoji: '🐟', category: 'freshwater' },
+    { name: '금강모치', emoji: '🐟', category: 'freshwater' },
+    { name: '열목어', emoji: '🐟', category: 'freshwater' },
+    { name: '감돌고기', emoji: '🐟', category: 'freshwater' },
+    { name: '한강납줄개', emoji: '🐠', category: 'freshwater' },
+    { name: '돌상어', emoji: '🐟', category: 'freshwater' },
+    { name: '연준모치', emoji: '🐟', category: 'freshwater' },
+    // 해수 20종
+    { name: '농어', emoji: '🐟', category: 'saltwater' },
+    { name: '방어', emoji: '🐟', category: 'saltwater' },
+    { name: '도미', emoji: '🐠', category: 'saltwater' },
+    { name: '광어', emoji: '🐟', category: 'saltwater' },
+    { name: '갈치', emoji: '🐟', category: 'saltwater' },
+    { name: '문어', emoji: '🐙', category: 'saltwater' },
+    { name: '오징어', emoji: '🦑', category: 'saltwater' },
+    { name: '꽃게', emoji: '🦀', category: 'saltwater' },
+    { name: '연어', emoji: '🐟', category: 'saltwater' },
+    { name: '장어', emoji: '🐍', category: 'saltwater' },
+    { name: '복어', emoji: '🐡', category: 'saltwater' },
+    { name: '우럭', emoji: '🐟', category: 'saltwater' },
+    { name: '감성돔', emoji: '🐟', category: 'saltwater' },
+    { name: '삼치', emoji: '🐟', category: 'saltwater' },
+    { name: '전복', emoji: '🐚', category: 'saltwater' },
+    { name: '성게', emoji: '🦔', category: 'saltwater' },
+    { name: '주꾸미', emoji: '🐙', category: 'saltwater' },
+    { name: '참돔', emoji: '🐠', category: 'saltwater' },
+    { name: '벤자리', emoji: '🐟', category: 'saltwater' },
+    { name: '부시리', emoji: '🐟', category: 'saltwater' },
+    // 열대 5종
+    { name: '흰동가리', emoji: '🐠', category: 'tropical' },
+    { name: '블루탱', emoji: '🐠', category: 'tropical' },
+    { name: '디스커스', emoji: '🐠', category: 'tropical' },
+    { name: '피라냐', emoji: '🐟', category: 'tropical' },
+    { name: '아로와나', emoji: '🐟', category: 'tropical' },
+  ],
+  suffixes: [
+    '',
+    '',
+    '(+1)',
+    '(진화형)',
+    '(아종)',
+    '(알비노)',
+    '(고대종)',
+    '(변이체)',
+  ],
+}
+
+// ── Rare fish template: 20 prefixes × 30 bases × 8 suffixes = 4,800 ──
+const rareFishTemplate: FishTemplate = {
+  prefixes: [
+    '불꽃의',
+    '얼음의',
+    '번개의',
+    '수정의',
+    '암흑의',
+    '황금의',
+    '은하의',
+    '고대의',
+    '전설적인',
+    '심해의',
+    '극지방의',
+    '남극의',
+    '북극의',
+    '고급',
+    '왕',
+    '대왕',
+    '초대형',
+    '무지개빛',
+    '진주빛',
+    '용의',
+  ],
+  bases: [
+    { name: '참치', emoji: '🐟', category: 'saltwater' },
+    { name: '상어', emoji: '🦈', category: 'saltwater' },
+    { name: '해파리', emoji: '🪼', category: 'saltwater' },
+    { name: '다랑어', emoji: '🐟', category: 'saltwater' },
+    { name: '킹크랩', emoji: '🦀', category: 'deep_sea' },
+    { name: '전기뱀장어', emoji: '⚡', category: 'tropical' },
+    { name: '만타레이', emoji: '🐟', category: 'saltwater' },
+    { name: '철갑상어', emoji: '🐟', category: 'freshwater' },
+    { name: '대게', emoji: '🦀', category: 'saltwater' },
+    { name: '랍스터', emoji: '🦞', category: 'saltwater' },
+    { name: '귀상어', emoji: '🦈', category: 'saltwater' },
+    { name: '돌돔', emoji: '🐟', category: 'saltwater' },
+    { name: '붉바리', emoji: '🐟', category: 'saltwater' },
+    { name: '민어', emoji: '🐟', category: 'saltwater' },
+    { name: '피라루쿠', emoji: '🐟', category: 'tropical' },
+    { name: '플라워혼', emoji: '🐠', category: 'tropical' },
+    { name: '바다거북', emoji: '🐢', category: 'saltwater' },
+    { name: '무지개열대어', emoji: '🌈', category: 'tropical' },
+    { name: '심해새우', emoji: '🦐', category: 'deep_sea' },
+    { name: '열대해마', emoji: '🐟', category: 'tropical' },
+    { name: '넙치', emoji: '🐟', category: 'saltwater' },
+    { name: '전기메기', emoji: '⚡', category: 'tropical' },
+    { name: '쥐가오리', emoji: '🐟', category: 'saltwater' },
+    { name: '나비고기', emoji: '🐠', category: 'tropical' },
+    { name: '곰치', emoji: '🐍', category: 'saltwater' },
+    { name: '흑돔', emoji: '🐟', category: 'saltwater' },
+    { name: '쏠배감펭', emoji: '🐟', category: 'tropical' },
+    { name: '돗돔', emoji: '🐟', category: 'saltwater' },
+    { name: '날치', emoji: '🐟', category: 'saltwater' },
+    { name: '청새치', emoji: '🐟', category: 'saltwater' },
+  ],
+  suffixes: ['', '', '(★)', '(★★)', '(변이)', '(고대형)', '(진화)', '(아종)'],
+}
+
+// ── Epic fish template: 18 prefixes × 20 bases × 7 suffixes = 2,520 ──
+const epicFishTemplate: FishTemplate = {
+  prefixes: [
+    '용의',
+    '피닉스의',
+    '심연의',
+    '천상의',
+    '폭풍의',
+    '지배자의',
+    '파괴자의',
+    '수호자의',
+    '고대의',
+    '영원의',
+    '운명의',
+    '심판의',
+    '절대의',
+    '차원의',
+    '영혼의',
+    '마왕의',
+    '제왕의',
+    '불멸의',
+  ],
+  bases: [
+    { name: '대왕오징어', emoji: '🦑', category: 'deep_sea' },
+    { name: '백상아리', emoji: '🦈', category: 'saltwater' },
+    { name: '개복치', emoji: '🐟', category: 'saltwater' },
+    { name: '심해아귀', emoji: '🐟', category: 'deep_sea' },
+    { name: '실러캔스', emoji: '🐟', category: 'deep_sea' },
+    { name: '고래상어', emoji: '🦈', category: 'saltwater' },
+    { name: '범고래', emoji: '🐋', category: 'saltwater' },
+    { name: '바이퍼피쉬', emoji: '🐟', category: 'deep_sea' },
+    { name: '산갈치', emoji: '🐟', category: 'deep_sea' },
+    { name: '드래곤피쉬', emoji: '🐉', category: 'deep_sea' },
+    { name: '나폴레옹피쉬', emoji: '🐠', category: 'tropical' },
+    { name: '블루핀참치', emoji: '🐟', category: 'saltwater' },
+    { name: '진주조개', emoji: '🐚', category: 'saltwater' },
+    { name: '환도상어', emoji: '🦈', category: 'saltwater' },
+    { name: '수정해파리', emoji: '🪼', category: 'deep_sea' },
+    { name: '블루링문어', emoji: '🐙', category: 'tropical' },
+    { name: '용궁거북', emoji: '🐢', category: 'mythical' },
+    { name: '심해해삼', emoji: '🫠', category: 'deep_sea' },
+    { name: '흡혈오징어', emoji: '🦑', category: 'deep_sea' },
+    { name: '태평양참치', emoji: '🐟', category: 'saltwater' },
+  ],
+  suffixes: ['', '', '(★★)', '(★★★)', '(각성)', '(초월)', '(영혼체)'],
+}
+
+// ── Legendary fish template: 15 prefixes × 15 bases × 7 suffixes = 1,575 ──
+const legendaryFishTemplate: FishTemplate = {
+  prefixes: [
+    '신들의',
+    '세계를 가르는',
+    '별을 삼킨',
+    '차원을 찢는',
+    '영겁의',
+    '만물의',
+    '절대자의',
+    '시간을 멈추는',
+    '영혼을 지배하는',
+    '신화 속',
+    '태초의',
+    '종말의',
+    '신성한',
+    '불멸의',
+    '초월한',
+  ],
+  bases: [
+    { name: '용의물고기', emoji: '🐉', category: 'mythical' },
+    { name: '다이아몬드물고기', emoji: '💎', category: 'mythical' },
+    { name: '불사조물고기', emoji: '🐦‍🔥', category: 'mythical' },
+    { name: '메갈로돈', emoji: '🦈', category: 'mythical' },
+    { name: '황금고래', emoji: '🐋', category: 'mythical' },
+    { name: '일각고래', emoji: '🦄', category: 'mythical' },
+    { name: '등불고기', emoji: '💡', category: 'deep_sea' },
+    { name: '얼음물고기', emoji: '🧊', category: 'deep_sea' },
+    { name: '대왕산호', emoji: '🌈', category: 'tropical' },
+    { name: '눈동자개', emoji: '👑', category: 'freshwater' },
+    { name: '크리스탈새우', emoji: '💎', category: 'deep_sea' },
+    { name: '심연의문어', emoji: '🐙', category: 'deep_sea' },
+    { name: '에메랄드랍스터', emoji: '🦞', category: 'saltwater' },
+    { name: '천사고래', emoji: '👼', category: 'mythical' },
+    { name: '우주거북', emoji: '🐢', category: 'mythical' },
+  ],
+  suffixes: ['', '', '(★★★)', '(★★★★)', '(궁극)', '(초월체)', '(신격)'],
+}
+
+// ── Mythic fish template: 12 prefixes × 10 bases × 5 suffixes = 600 ──
+const mythicFishTemplate: FishTemplate = {
+  prefixes: [
+    '우주를 삼키는',
+    '차원을 지배하는',
+    '만물을 창조하는',
+    '시공간의',
+    '존재를 초월하는',
+    '세계를 리셋하는',
+    '신을 심판하는',
+    '현실을 무시하는',
+    '법칙을 파괴하는',
+    '은하를 집어삼키는',
+    '다중우주의',
+    '인과율을 무시하는',
+  ],
+  bases: [
+    { name: '세계물고기', emoji: '🌍', category: 'mythical' },
+    { name: '시공간고래', emoji: '🐋', category: 'mythical' },
+    { name: '무한의문어', emoji: '🐙', category: 'mythical' },
+    { name: '신의금붕어', emoji: '🐠', category: 'mythical' },
+    { name: '리바이어던', emoji: '🐲', category: 'mythical' },
+    { name: '요르문간드', emoji: '🐍', category: 'mythical' },
+    { name: '인어', emoji: '🧜‍♀️', category: 'mythical' },
+    { name: '여의주', emoji: '🔮', category: 'mythical' },
+    { name: '심연의눈', emoji: '👁️', category: 'mythical' },
+    { name: '태초의물방울', emoji: '💧', category: 'mythical' },
+  ],
+  suffixes: ['', '', '(Ω)', '(∞)', '(■■■)'],
+}
+
+// ── Seeded pseudo-random for deterministic fish generation ──
+function fishSeededRandom(seed: number): () => number {
+  let s = seed
+  return () => {
+    s = (s * 1664525 + 1013904223) & 0xffffffff
+    return (s >>> 0) / 0xffffffff
+  }
+}
+
+function generateFish(
+  template: FishTemplate,
+  rarity: FishRarity,
+  targetCount: number,
+  seed: number,
+): FishType[] {
+  const rand = fishSeededRandom(seed)
+  const items: FishType[] = []
+  const usedNames = new Set<string>()
+  const range = fishStatRanges[rarity]
+  const randBetween = (min: number, max: number) => min + rand() * (max - min)
+
+  for (const prefix of template.prefixes) {
+    for (const base of template.bases) {
+      for (const suffix of template.suffixes) {
+        if (items.length >= targetCount) break
+        const name = `${prefix} ${base.name}${suffix ? ' ' + suffix : ''}`
+        if (usedNames.has(name)) continue
+        usedNames.add(name)
+
+        const descs = fishDescTemplates[base.category]
+        const description = descs[Math.floor(rand() * descs.length)]
+
+        items.push({
+          name,
+          emoji: base.emoji,
+          rarity,
+          minSize: Math.round(randBetween(range.minSize[0], range.minSize[1])),
+          maxSize: Math.round(randBetween(range.maxSize[0], range.maxSize[1])),
+          baseValue: Math.round(
+            randBetween(range.baseValue[0], range.baseValue[1]),
+          ),
+          description,
+          category: base.category,
+        })
+      }
+      if (items.length >= targetCount) break
+    }
+    if (items.length >= targetCount) break
+  }
+  return items.slice(0, targetCount)
+}
+
+// Generate fish per rarity to fill up to ~30,000 total
+const genCommon = generateFish(commonFishTemplate, 'common', 13500, 12345)
+const genUncommon = generateFish(uncommonFishTemplate, 'uncommon', 7500, 23456)
+const genRare = generateFish(rareFishTemplate, 'rare', 4500, 34567)
+const genEpic = generateFish(epicFishTemplate, 'epic', 2400, 45678)
+const genLegendary = generateFish(
+  legendaryFishTemplate,
+  'legendary',
+  1500,
+  56789,
+)
+const genMythic = generateFish(mythicFishTemplate, 'mythic', 600, 67890)
+
+function mergeFishAndDedup(...arrays: FishType[][]): FishType[] {
+  const seen = new Set<string>()
+  const result: FishType[] = []
+  for (const arr of arrays) {
+    for (const fish of arr) {
+      if (!seen.has(fish.name)) {
+        seen.add(fish.name)
+        result.push(fish)
+      }
+    }
+  }
+  return result
+}
+
+export const fishPool: FishType[] = mergeFishAndDedup(
+  handcraftedFish,
+  genCommon,
+  genUncommon,
+  genRare,
+  genEpic,
+  genLegendary,
+  genMythic,
+)
+
+// ══════════════════════════════════════
 //  LABELS & COLORS
 // ══════════════════════════════════════
 
@@ -1898,70 +2567,68 @@ export function rollFishingEvent(
   const doubleCatchChance = Math.max(0, 5 - pollutionLevel * 0.5)
   const goldenHourChance = 2
   const stormChance = 3
+  const dangerousChance = 2.5 + pollutionLevel * 0.3 // 2.5~5.5%
+  const seaMonsterChance = 2
 
-  if (roll < lineBreakChance) {
+  let cumulative = 0
+
+  cumulative += lineBreakChance
+  if (roll < cumulative) {
     return { type: 'line_break', message: '낚싯줄이 끊어졌다!', emoji: '💔' }
-  } else if (roll < lineBreakChance + trashChance) {
+  }
+  cumulative += dangerousChance
+  if (roll < cumulative) {
+    return {
+      type: 'dangerous',
+      message: '뭔가 위험한 게 낚였다...!',
+      emoji: '☠️',
+    }
+  }
+  cumulative += trashChance
+  if (roll < cumulative) {
     return { type: 'trash', message: '쓰레기가 걸렸다...', emoji: '🗑️' }
-  } else if (roll < lineBreakChance + trashChance + stormChance) {
+  }
+  cumulative += stormChance
+  if (roll < cumulative) {
     return {
       type: 'storm',
       message: '폭풍이 몰아친다! 큰 물고기가 올라올 수도...',
       emoji: '🌊',
     }
-  } else if (
-    roll <
-    lineBreakChance + trashChance + stormChance + goldenHourChance
-  ) {
+  }
+  cumulative += goldenHourChance
+  if (roll < cumulative) {
     return {
       type: 'golden_hour',
       message: '황금 시간! 물고기의 가치가 2배!',
       emoji: '✨',
     }
-  } else if (
-    roll <
-    lineBreakChance +
-      trashChance +
-      stormChance +
-      goldenHourChance +
-      doubleCatchChance
-  ) {
+  }
+  cumulative += doubleCatchChance
+  if (roll < cumulative) {
     return {
       type: 'double_catch',
       message: '대박! 한 번에 두 마리를 잡았다!',
       emoji: '🎉',
     }
-  } else if (
-    roll <
-    lineBreakChance +
-      trashChance +
-      stormChance +
-      goldenHourChance +
-      doubleCatchChance +
-      treasureChance
-  ) {
+  }
+  cumulative += treasureChance
+  if (roll < cumulative) {
     return { type: 'treasure', message: '보물 상자를 낚았다!', emoji: '🎁' }
-  } else if (
-    roll <
-    lineBreakChance +
-      trashChance +
-      stormChance +
-      goldenHourChance +
-      doubleCatchChance +
-      treasureChance +
-      2
-  ) {
+  }
+  cumulative += seaMonsterChance
+  if (roll < cumulative) {
     return {
       type: 'sea_monster',
       message: '바다 괴물이 나타났다!',
       emoji: '🦑',
     }
-  } else {
-    return { type: 'normal', message: '물고기가 걸렸다!', emoji: '🐟' }
   }
+  return { type: 'normal', message: '물고기가 걸렸다!', emoji: '🐟' }
 }
 
-// Roll fish — pollution reduces rare chances, storm boosts them
+// Roll fish — balanced: higher levels give only slight advantage
+// User requirement: "낚시터 등급 올라도 잡히는 물고기 등급 확률을 너무 많이 올리지 말고"
 export function rollFish(
   spotLevel: number,
   pollutionLevel: number = 0,
@@ -1969,28 +2636,47 @@ export function rollFish(
 ): { fish: FishType; size: number; value: number } {
   const roll = Math.random() * 100
 
-  const pollutionPenalty = pollutionLevel * 2
-  const stormBonus = isStorm ? 10 : 0
+  const pollutionPenalty = pollutionLevel * 1.5
+  const stormBonus = isStorm ? 5 : 0
+
+  // Very conservative rates - even max level gives only small boost
+  // spotLevel 1: common only
+  // spotLevel 2: uncommon 8%
+  // spotLevel 3: rare 3%, uncommon 12%
+  // spotLevel 4: epic 1.2%, rare 5%, uncommon 15%
+  // spotLevel 5: mythic 0.05%, legendary 0.4%, epic 2%, rare 6%, uncommon 16%
+  // Each additional level adds only tiny increments
+  const levelBonus = Math.max(0, spotLevel - 1) // 0-9
 
   const mythicChance = Math.max(
     0,
-    (spotLevel >= 5 ? 0.5 : 0) - pollutionPenalty * 0.05 + stormBonus * 0.1,
+    (spotLevel >= 5 ? 0.05 + (levelBonus - 4) * 0.02 : 0) -
+      pollutionPenalty * 0.01 +
+      stormBonus * 0.02,
   )
   const legendaryChance = Math.max(
     0,
-    (spotLevel >= 5 ? 2 : 0) - pollutionPenalty * 0.2 + stormBonus * 0.3,
+    (spotLevel >= 5 ? 0.4 + (levelBonus - 4) * 0.05 : 0) -
+      pollutionPenalty * 0.05 +
+      stormBonus * 0.1,
   )
   const epicChance = Math.max(
     0,
-    (spotLevel >= 4 ? 5 : 0) - pollutionPenalty * 0.3 + stormBonus * 1,
+    (spotLevel >= 4 ? 1.2 + (levelBonus - 3) * 0.15 : 0) -
+      pollutionPenalty * 0.1 +
+      stormBonus * 0.3,
   )
   const rareChance = Math.max(
     0,
-    (spotLevel >= 3 ? 12 : 0) - pollutionPenalty * 0.5 + stormBonus * 2,
+    (spotLevel >= 3 ? 3 + (levelBonus - 2) * 0.3 : 0) -
+      pollutionPenalty * 0.2 +
+      stormBonus * 0.5,
   )
   const uncommonChance = Math.max(
     0,
-    (spotLevel >= 2 ? 25 : 0) - pollutionPenalty * 0.5 + stormBonus * 2,
+    (spotLevel >= 2 ? 8 + (levelBonus - 1) * 0.5 : 0) -
+      pollutionPenalty * 0.3 +
+      stormBonus * 1,
   )
 
   let rarity: string

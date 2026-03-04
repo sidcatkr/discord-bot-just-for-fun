@@ -1,18 +1,21 @@
 export interface GachaItem {
   name: string
   rarity: 'common' | 'uncommon' | 'rare' | 'epic' | 'legendary' | 'mythic'
+  type: 'equipment' | 'consumable' | 'material'
   emoji: string
   attack: number
   defense: number
   hp: number
   crit: number
+  useEffect?: string // description for consumables
 }
 
 // ──────────────────────────────────────
 //  Hand-crafted signature items
 // ──────────────────────────────────────
 
-const handcraftedItems: GachaItem[] = [
+// All handcrafted items default to 'equipment' type
+const _rawHandcraftedItems: Omit<GachaItem, 'type'>[] = [
   // ═══ Common (45%) ═══
   {
     name: '고무장갑',
@@ -1151,8 +1154,14 @@ const handcraftedItems: GachaItem[] = [
   },
 ]
 
+// Map raw handcrafted items to include type
+const handcraftedItems: GachaItem[] = _rawHandcraftedItems.map((item) => ({
+  ...item,
+  type: 'equipment' as const,
+}))
+
 // ──────────────────────────────────────
-//  Template-based generation for ~1000 items
+//  Template-based generation for ~10,000 items
 // ──────────────────────────────────────
 
 interface ItemTemplate {
@@ -1514,6 +1523,7 @@ function generateItems(
         items.push({
           name,
           rarity,
+          type: 'equipment',
           emoji: base.emoji,
           attack,
           defense,
@@ -1528,18 +1538,348 @@ function generateItems(
   return items.slice(0, targetCount)
 }
 
-// Generate items per rarity to fill up to ~1000 total
-const generatedCommon = generateItems(commonTemplates, 'common', 260, 42)
-const generatedUncommon = generateItems(uncommonTemplates, 'uncommon', 225, 137)
-const generatedRare = generateItems(rareTemplates, 'rare', 180, 256)
-const generatedEpic = generateItems(epicTemplates, 'epic', 132, 512)
+// Generate items per rarity to fill up to ~10,000 total
+// Equipment: ~7,000 | Consumables & Materials: ~3,000
+const generatedCommon = generateItems(commonTemplates, 'common', 2500, 42)
+const generatedUncommon = generateItems(
+  uncommonTemplates,
+  'uncommon',
+  1800,
+  137,
+)
+const generatedRare = generateItems(rareTemplates, 'rare', 1200, 256)
+const generatedEpic = generateItems(epicTemplates, 'epic', 800, 512)
 const generatedLegendary = generateItems(
   legendaryTemplates,
   'legendary',
-  48,
+  350,
   777,
 )
-const generatedMythic = generateItems(mythicTemplates, 'mythic', 30, 999)
+const generatedMythic = generateItems(mythicTemplates, 'mythic', 150, 999)
+
+// ──────────────────────────────────────
+//  Consumable & Material item generation
+// ──────────────────────────────────────
+
+const consumableCommonTemplate: ItemTemplate = {
+  prefixes: [
+    '싸구려',
+    '기본',
+    '흔한',
+    '오래된',
+    '맛없는',
+    '수상한',
+    '작은',
+    '미니',
+    '저렴한',
+    '할인된',
+    '재활용',
+    '의문의',
+    '남은',
+    '구겨진',
+    '녹슨',
+    '식은',
+  ],
+  bases: [
+    { name: '물약', emoji: '🧪' },
+    { name: '빵', emoji: '🍞' },
+    { name: '사과', emoji: '🍎' },
+    { name: '쿠키', emoji: '🍪' },
+    { name: '주먹밥', emoji: '🍙' },
+    { name: '생수', emoji: '💧' },
+    { name: '붕대', emoji: '🩹' },
+    { name: '허브', emoji: '🌿' },
+    { name: '버섯', emoji: '🍄' },
+    { name: '열매', emoji: '🫐' },
+    { name: '약초', emoji: '🌱' },
+    { name: '연고', emoji: '💊' },
+    { name: '떡', emoji: '🍡' },
+    { name: '캔디', emoji: '🍬' },
+  ],
+  suffixes: ['', '', '(약)', '(소)', '(잔여분)', '(파손)'],
+}
+
+const consumableUncommonTemplate: ItemTemplate = {
+  prefixes: [
+    '강화된',
+    '정제된',
+    '고급',
+    '향기로운',
+    '따뜻한',
+    '시원한',
+    '달콤한',
+    '쓴맛의',
+    '특제',
+    '비밀의',
+    '조합사의',
+    '약사의',
+    '요리사의',
+    '마법의',
+  ],
+  bases: [
+    { name: '치유 물약', emoji: '🧪' },
+    { name: '에너지 드링크', emoji: '🥫' },
+    { name: '스테이크', emoji: '🥩' },
+    { name: '스크롤', emoji: '📜' },
+    { name: '정령수', emoji: '💧' },
+    { name: '만두', emoji: '🥟' },
+    { name: '파이', emoji: '🥧' },
+    { name: '주스', emoji: '🧃' },
+    { name: '거품약', emoji: '🫧' },
+    { name: '부적', emoji: '🧿' },
+    { name: '향', emoji: '🪔' },
+    { name: '요리', emoji: '🍲' },
+  ],
+  suffixes: ['', '', '(중)', '(+1)', '(개량)', '(특제)'],
+}
+
+const consumableRareTemplate: ItemTemplate = {
+  prefixes: [
+    '불꽃의',
+    '얼음의',
+    '번개의',
+    '치유의',
+    '강화의',
+    '보호의',
+    '축복의',
+    '성수의',
+    '용의',
+    '현자의',
+    '고대의',
+    '왕실의',
+  ],
+  bases: [
+    { name: '엘릭서', emoji: '🧪' },
+    { name: '영약', emoji: '💊' },
+    { name: '만능약', emoji: '⚗️' },
+    { name: '각성제', emoji: '💉' },
+    { name: '강화 스크롤', emoji: '📜' },
+    { name: '마력 결정', emoji: '🔮' },
+    { name: '정령석', emoji: '💎' },
+    { name: '신비의 과일', emoji: '🍇' },
+    { name: '마법 케이크', emoji: '🎂' },
+    { name: '축복 구슬', emoji: '🟢' },
+  ],
+  suffixes: ['', '', '(★)', '(대)', '(축복)', '(정제)'],
+}
+
+const consumableEpicTemplate: ItemTemplate = {
+  prefixes: [
+    '용의',
+    '피닉스의',
+    '심연의',
+    '천상의',
+    '불멸의',
+    '절대의',
+    '신성한',
+    '금단의',
+    '영혼의',
+    '차원의',
+  ],
+  bases: [
+    { name: '불사약', emoji: '⚗️' },
+    { name: '전설의 영약', emoji: '🧪' },
+    { name: '용의 눈물', emoji: '💧' },
+    { name: '세계수 열매', emoji: '🍎' },
+    { name: '시간의 모래', emoji: '⏳' },
+    { name: '마력 증폭기', emoji: '🔮' },
+    { name: '대천사의 깃털', emoji: '🪶' },
+    { name: '정령왕의 축복', emoji: '🌟' },
+  ],
+  suffixes: ['', '', '(★★)', '(초월)', '(각성)', '(영혼)'],
+}
+
+const materialCommonTemplate: ItemTemplate = {
+  prefixes: [
+    '조각난',
+    '작은',
+    '흔한',
+    '거친',
+    '낮은등급',
+    '잡다한',
+    '평범한',
+    '얇은',
+    '가벼운',
+    '싼',
+    '잔해의',
+    '부서진',
+    '마모된',
+    '탁한',
+  ],
+  bases: [
+    { name: '나무', emoji: '🪵' },
+    { name: '돌', emoji: '🪨' },
+    { name: '철광석', emoji: '⛏️' },
+    { name: '가죽', emoji: '🧶' },
+    { name: '천 조각', emoji: '🧵' },
+    { name: '뼈', emoji: '🦴' },
+    { name: '잡초', emoji: '🌾' },
+    { name: '실', emoji: '🧵' },
+    { name: '모래', emoji: '🏖️' },
+    { name: '점토', emoji: '🏺' },
+    { name: '숯', emoji: '♨️' },
+    { name: '유리 조각', emoji: '🔩' },
+  ],
+  suffixes: ['', '', '(소)', '(파편)', '(잔해)', '(저급)'],
+}
+
+const materialUncommonTemplate: ItemTemplate = {
+  prefixes: [
+    '정제된',
+    '가공된',
+    '단단한',
+    '유연한',
+    '빛나는',
+    '마법의',
+    '강화된',
+    '은빛',
+    '금빛',
+    '순수한',
+    '고급',
+    '정밀한',
+  ],
+  bases: [
+    { name: '강철', emoji: '⚙️' },
+    { name: '은괴', emoji: '🪙' },
+    { name: '루비 원석', emoji: '🔴' },
+    { name: '사파이어 원석', emoji: '🔵' },
+    { name: '에메랄드 원석', emoji: '🟢' },
+    { name: '미스릴', emoji: '⚪' },
+    { name: '마력석', emoji: '🔮' },
+    { name: '비단', emoji: '🧣' },
+    { name: '용가죽', emoji: '🐲' },
+    { name: '달의 조각', emoji: '🌙' },
+  ],
+  suffixes: ['', '', '(정제)', '(가공)', '(중)', '(고급)'],
+}
+
+// Generate consumables
+function generateConsumables(
+  template: ItemTemplate,
+  rarity: GachaItem['rarity'],
+  targetCount: number,
+  seed: number,
+): GachaItem[] {
+  const rand = seededRandom(seed)
+  const items: GachaItem[] = []
+  const usedNames = new Set<string>()
+  const range = statRanges[rarity]
+
+  for (const prefix of template.prefixes) {
+    for (const base of template.bases) {
+      for (const suffix of template.suffixes) {
+        if (items.length >= targetCount) break
+        const name = `${prefix} ${base.name}${suffix ? ' ' + suffix : ''}`
+        if (usedNames.has(name)) continue
+        usedNames.add(name)
+
+        const rMin = (key: keyof typeof range) => range[key][0]
+        const rMax = (key: keyof typeof range) => range[key][1]
+        const randBetween = (min: number, max: number) =>
+          min + rand() * (max - min)
+
+        // Consumables focus on HP recovery
+        const hp = Math.round(randBetween(rMin('hp') * 0.5, rMax('hp') * 1.2))
+        const attack = Math.round(randBetween(0, rMax('attack') * 0.2))
+        const defense = Math.round(randBetween(0, rMax('defense') * 0.2))
+        const crit = Math.round(randBetween(0, rMax('crit') * 0.1) * 100) / 100
+
+        items.push({
+          name,
+          rarity,
+          type: 'consumable',
+          emoji: base.emoji,
+          attack,
+          defense,
+          hp,
+          crit,
+          useEffect: `사용 시 HP +${hp} 회복`,
+        })
+      }
+      if (items.length >= targetCount) break
+    }
+    if (items.length >= targetCount) break
+  }
+  return items.slice(0, targetCount)
+}
+
+// Generate materials
+function generateMaterials(
+  template: ItemTemplate,
+  rarity: GachaItem['rarity'],
+  targetCount: number,
+  seed: number,
+): GachaItem[] {
+  const rand = seededRandom(seed)
+  const items: GachaItem[] = []
+  const usedNames = new Set<string>()
+
+  for (const prefix of template.prefixes) {
+    for (const base of template.bases) {
+      for (const suffix of template.suffixes) {
+        if (items.length >= targetCount) break
+        const name = `${prefix} ${base.name}${suffix ? ' ' + suffix : ''}`
+        if (usedNames.has(name)) continue
+        usedNames.add(name)
+
+        items.push({
+          name,
+          rarity,
+          type: 'material',
+          emoji: base.emoji,
+          attack: 0,
+          defense: 0,
+          hp: 0,
+          crit: 0,
+          useEffect: '재료 아이템 — 조합에 사용',
+        })
+      }
+      if (items.length >= targetCount) break
+    }
+    if (items.length >= targetCount) break
+  }
+  return items.slice(0, targetCount)
+}
+
+// Generate consumables per rarity
+const genConsCommon = generateConsumables(
+  consumableCommonTemplate,
+  'common',
+  800,
+  11111,
+)
+const genConsUncommon = generateConsumables(
+  consumableUncommonTemplate,
+  'uncommon',
+  500,
+  22222,
+)
+const genConsRare = generateConsumables(
+  consumableRareTemplate,
+  'rare',
+  300,
+  33333,
+)
+const genConsEpic = generateConsumables(
+  consumableEpicTemplate,
+  'epic',
+  150,
+  44444,
+)
+
+// Generate materials per rarity
+const genMatCommon = generateMaterials(
+  materialCommonTemplate,
+  'common',
+  600,
+  55555,
+)
+const genMatUncommon = generateMaterials(
+  materialUncommonTemplate,
+  'uncommon',
+  400,
+  66666,
+)
 
 // Merge handcrafted + generated, dedup by name
 function mergeAndDedup(...arrays: GachaItem[][]): GachaItem[] {
@@ -1564,6 +1904,12 @@ export const gachaPool: GachaItem[] = mergeAndDedup(
   generatedEpic,
   generatedLegendary,
   generatedMythic,
+  genConsCommon,
+  genConsUncommon,
+  genConsRare,
+  genConsEpic,
+  genMatCommon,
+  genMatUncommon,
 )
 
 // For encyclopedia: get all unique item names that exist

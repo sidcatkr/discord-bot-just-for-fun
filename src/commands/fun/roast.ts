@@ -38,6 +38,13 @@ const roasts = [
   (t: string) => `${t}의 카톡 프사는 2019년 것입니다`,
   (t: string) => `${t}은(는) "읽씹 아니고 바빴어" 라고 매번 말합니다`,
   (t: string) => `${t}은(는) Ctrl+Z 인생을 살고 있습니다`,
+  (t: string) => `${t}은(는) 디시인사이드 정치 갤러리 출신입니다`,
+  (t: string) => `${t}의 매력은 비트코인처럼 폭락 중입니다`,
+  (t: string) => `${t}은(는) 잠을 자도 피곤한 체질입니다 (존재 자체가 피로)`,
+  (t: string) => `${t}의 인생 그래프는 우하향 일직선입니다`,
+  (t: string) => `${t}은(는) 가챠에서 커먼만 뽑는 저주에 걸렸습니다`,
+  (t: string) =>
+    `${t}은(는) "아 ㅋㅋ 그거 내가 원래 알고 있었는데" 라고 매번 말합니다`,
 ]
 
 export async function execute(interaction: ChatInputCommandInteraction) {

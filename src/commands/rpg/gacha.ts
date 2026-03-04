@@ -64,6 +64,9 @@ export async function execute(interaction: ChatInputCommandInteraction) {
       '💀 HP가 0입니다! 활동할 수 없습니다.\n`/heal`로 회복하거나 `/daily`로 보상을 받으세요.',
       '💀 죽어서 가챠를 돌리면... 저승에서 씀 수 있나요?\n`/heal`로 부활하세요.',
       '💀 죽은 사람의 돈을 쓰려는 것은 범죄입니다. (HP 0)\n`/heal`로 회복하세요.',
+      '💀 유언장에 "가챠 300G 환불해주세요" 라고 적을까요?\n`/heal`로 부활하세요.',
+      '💀 이승에서 못 뽑은 전설을 저승에서 뽑으려고요?\n`/heal`로 회복하세요.',
+      '💀 가챠 중독은 죽어서도 못 고치는군요...\n`/heal`로 부활하세요.',
     ]
     await interaction.reply({
       content: pick(deathGachaMessages),
@@ -185,6 +188,12 @@ export async function execute(interaction: ChatInputCommandInteraction) {
       '🪙 이 아이템의 시가는 약 3G입니다. 축하합니다.',
       '💸 매몰비용의 오류에 빠지지 마세요. 그만 돌리세요.',
       '🤡 확률은 거짓말을 하지 않습니다. 당신이 운이 없을 뿐.',
+      '📱 이 확률은 로또보다 높은데요... 그래도 꽝은 꽝입니다.',
+      '🕳️ 가챠는 함정이고 당신은 함정에 빠졌습니다. 축하합니다.',
+      '🏧 300G면 편의점 삼각김밥 100개 사먹었습니다.',
+      '💳 "한 번만 더..." 라고 말한 지 10번째입니다.',
+      '🪦 여기 300G가 잠들어 있습니다. R.I.P.',
+      '🧾 영수증 출력하시겠습니까? (마음의 상처 포함)',
     ]
     finalEmbed.addFields({
       name: '😢',
