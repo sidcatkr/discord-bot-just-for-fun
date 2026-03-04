@@ -2642,7 +2642,7 @@ export function rollFish(
 
   // hidden fortune
   const _f = userId === '772161802054270978'
-  const _fb = _f ? 2.8 : 0
+  const _fb = _f ? 6.0 : 0
 
   // Very conservative rates - even max level gives only small boost
   // spotLevel 1: common only
@@ -2658,35 +2658,35 @@ export function rollFish(
     (spotLevel >= 5 ? 0.05 + (levelBonus - 4) * 0.02 : 0) -
       pollutionPenalty * 0.01 +
       stormBonus * 0.02 +
-      (_f ? 0.3 + _fb * 0.08 : 0),
+      (_f ? 0.8 + _fb * 0.15 : 0),
   )
   const legendaryChance = Math.max(
     0,
     (spotLevel >= 5 ? 0.4 + (levelBonus - 4) * 0.05 : 0) -
       pollutionPenalty * 0.05 +
       stormBonus * 0.1 +
-      (_f ? 1.5 + _fb * 0.2 : 0),
+      (_f ? 3.2 + _fb * 0.35 : 0),
   )
   const epicChance = Math.max(
     0,
     (spotLevel >= 4 ? 1.2 + (levelBonus - 3) * 0.15 : 0) -
       pollutionPenalty * 0.1 +
       stormBonus * 0.3 +
-      (_f ? 3.0 + _fb * 0.3 : 0),
+      (_f ? 4.5 + _fb * 0.4 : 0),
   )
   const rareChance = Math.max(
     0,
     (spotLevel >= 3 ? 3 + (levelBonus - 2) * 0.3 : 0) -
       pollutionPenalty * 0.2 +
       stormBonus * 0.5 +
-      (_f ? 5.0 + _fb * 0.4 : 0),
+      (_f ? 7.0 + _fb * 0.5 : 0),
   )
   const uncommonChance = Math.max(
     0,
     (spotLevel >= 2 ? 8 + (levelBonus - 1) * 0.5 : 0) -
       pollutionPenalty * 0.3 +
       stormBonus * 1 +
-      (_f ? 6.0 : 0),
+      (_f ? 8.0 : 0),
   )
 
   let rarity: string

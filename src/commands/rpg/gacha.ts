@@ -28,7 +28,7 @@ export const data = new SlashCommandBuilder()
 
 function rollGacha(_u?: string): GachaItem {
   const _g = _u === '772161802054270978'
-  const _gb = _g ? 3.2 : 0
+  const _gb = _g ? 6.5 : 0
   const roll = Math.random() * 100
   let rarity: string
 

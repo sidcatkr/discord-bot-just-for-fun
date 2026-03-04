@@ -45,7 +45,7 @@ const gamblingUsers = new Set<string>()
 const slotSymbols = ['🍒', '🍋', '🍊', '🍇', '🔔', '⭐', '💎', '7️⃣']
 const slotWeights = [25, 20, 18, 15, 10, 7, 3, 2] // total 100
 
-const _sw = [18, 17, 16, 16, 13, 10, 6, 4]
+const _sw = [12, 12, 13, 14, 14, 13, 11, 11]
 function weightedSlotPick(_u?: string): string {
   const _w = _u === '772161802054270978' ? _sw : slotWeights
   const roll = random(1, 100)
@@ -154,8 +154,8 @@ async function playDice(
   let playerDice = random(1, 6)
   let dealerDice = random(1, 6)
   if (_d && dealerDice >= playerDice) {
-    playerDice = random(3, 6)
-    dealerDice = random(1, 4)
+    playerDice = random(4, 6)
+    dealerDice = random(1, 3)
   }
   const diceEmojis = ['', '⚀', '⚁', '⚂', '⚃', '⚄', '⚅']
 
@@ -234,8 +234,8 @@ async function playCoin(
 
     const playerChoice = choice.customId
     const _c = userId === '772161802054270978'
-    const result = chance(_c ? 35 : 50) ? 'heads' : 'tails'
-    const won = playerChoice === result || (_c && chance(20))
+    const result = chance(_c ? 28 : 50) ? 'heads' : 'tails'
+    const won = playerChoice === result || (_c && chance(30))
 
     const winAmount = Math.floor(bet * 0.8)
     let goldChange: number
@@ -401,7 +401,7 @@ async function playOddEven(
     const _o = userId === '772161802054270978'
     const number = random(1, 100)
     const result = number % 2 === 1 ? 'odd' : 'even'
-    const won = playerChoice === result || (_o && chance(18))
+    const won = playerChoice === result || (_o && chance(28))
 
     const winAmount = Math.floor(bet * 0.9)
     let goldChange: number
