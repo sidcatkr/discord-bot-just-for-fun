@@ -133,6 +133,28 @@ db.exec(`
     built_at TEXT NOT NULL DEFAULT (datetime('now')),
     UNIQUE(user_id, guild_id, building_type)
   );
+
+  -- Water pollution per island
+  CREATE TABLE IF NOT EXISTS island_pollution (
+    user_id TEXT NOT NULL,
+    guild_id TEXT NOT NULL,
+    pollution_level REAL DEFAULT 0,
+    trash_dumped INTEGER DEFAULT 0,
+    trash_disposed INTEGER DEFAULT 0,
+    PRIMARY KEY (user_id, guild_id)
+  );
+
+  -- Trash inventory (unprocessed trash from fishing)
+  CREATE TABLE IF NOT EXISTS trash_inventory (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id TEXT NOT NULL,
+    guild_id TEXT NOT NULL,
+    trash_name TEXT NOT NULL,
+    trash_emoji TEXT DEFAULT '🗑️',
+    disposal_cost INTEGER DEFAULT 5,
+    pollution_amount REAL DEFAULT 2,
+    picked_up_at TEXT NOT NULL DEFAULT (datetime('now'))
+  );
 `)
 
 export default db

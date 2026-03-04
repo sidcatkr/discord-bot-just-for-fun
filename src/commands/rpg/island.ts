@@ -12,6 +12,8 @@ import {
   updateIsland,
   addGold,
   addIslandXp,
+  applyWaterTreatment,
+  getOrCreatePollution,
   pick,
 } from '../../db/helpers.js'
 
@@ -121,6 +123,18 @@ const BUILDINGS: BuildingInfo[] = [
     incomePerHour: [100, 250, 500, 1000, 2000],
     requiredIslandLevel: 5,
   },
+  {
+    type: 'water_treatment',
+    name: '수질 관리 시설',
+    emoji: '🚰',
+    description:
+      '오염된 바다를 정화합니다. 낚시할 때마다 오염도를 자동 감소시킵니다.',
+    maxLevel: 5,
+    baseCost: 600,
+    costMultiplier: 2.5,
+    incomePerHour: [0, 0, 0, 0, 0], // No gold income — reduces pollution instead
+    requiredIslandLevel: 1,
+  },
 ]
 
 function getBuildingCost(info: BuildingInfo, targetLevel: number): number {
@@ -204,10 +218,18 @@ async function handleView(
     const income = info.incomePerHour[b.building_level - 1] ?? 0
     totalIncome += income
     const levelStars = '⭐'.repeat(b.building_level)
-    buildingLines.push(
-      `${info.emoji} **${info.name}** ${levelStars}\n` +
-        `  수입: ${income}G/시간${b.building_level < info.maxLevel ? ` | 다음 레벨: ${getBuildingCost(info, b.building_level + 1)}G` : ' | **MAX**'}`,
-    )
+    if (info.type === 'water_treatment') {
+      const reduction = (b.building_level * 0.3).toFixed(1)
+      buildingLines.push(
+        `${info.emoji} **${info.name}** ${levelStars}\n` +
+          `  효과: 낚시 시 오염도 -${reduction}${b.building_level < info.maxLevel ? ` | 다음 레벨: ${getBuildingCost(info, b.building_level + 1)}G` : ' | **MAX**'}`,
+      )
+    } else {
+      buildingLines.push(
+        `${info.emoji} **${info.name}** ${levelStars}\n` +
+          `  수입: ${income}G/시간${b.building_level < info.maxLevel ? ` | 다음 레벨: ${getBuildingCost(info, b.building_level + 1)}G` : ' | **MAX**'}`,
+      )
+    }
   }
 
   if (buildingLines.length === 0) {
@@ -385,7 +407,22 @@ async function handleCollect(
     }
   }
 
-  if (totalEarned === 0) {
+  // Water treatment: passively reduce pollution on collect
+  let pollutionReduced = 0
+  const waterTreatment = buildings.find(
+    (b) => b.building_type === 'water_treatment',
+  )
+  if (waterTreatment) {
+    const reduceAmount =
+      waterTreatment.building_level * 0.5 * Math.min(hoursPassed, 24)
+    const pollution = getOrCreatePollution(userId, guildId)
+    if (pollution.pollution_level > 0) {
+      applyWaterTreatment(userId, guildId, waterTreatment.building_level)
+      pollutionReduced = Math.min(reduceAmount, pollution.pollution_level)
+    }
+  }
+
+  if (totalEarned === 0 && pollutionReduced === 0) {
     await interaction.reply({
       content: '💤 수익이 아직 쌓이지 않았습니다.',
       ephemeral: true,
@@ -398,14 +435,17 @@ async function handleCollect(
     last_collect: now.toISOString().replace('T', ' ').split('.')[0],
   })
 
+  let description =
+    `**${Math.floor(hoursPassed)}시간 ${Math.floor((hoursPassed % 1) * 60)}분** 동안의 수익\n\n` +
+    earningsLines.join('\n')
+  if (totalEarned > 0) description += `\n\n**총 수익: ${totalEarned}G** 💰`
+  if (pollutionReduced > 0)
+    description += `\n\n🚰 수질 관리 시설이 오염도를 **${pollutionReduced.toFixed(1)}** 감소시켰습니다!`
+
   const embed = new EmbedBuilder()
     .setColor(0xffd700)
     .setTitle('💰 수익 수거!')
-    .setDescription(
-      `**${Math.floor(hoursPassed)}시간 ${Math.floor((hoursPassed % 1) * 60)}분** 동안의 수익\n\n` +
-        earningsLines.join('\n') +
-        `\n\n**총 수익: ${totalEarned}G** 💰`,
-    )
+    .setDescription(description)
     .setFooter({ text: '최대 24시간까지 수익이 쌓입니다' })
     .setTimestamp()
 

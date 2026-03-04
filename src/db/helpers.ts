@@ -641,3 +641,141 @@ export function getCollectedFishNames(
     .all(userId, guildId) as { fish_name: string }[]
   return rows.map((r) => r.fish_name)
 }
+
+// ──────────────────────────────────────
+//  Pollution System
+// ──────────────────────────────────────
+
+export interface PollutionData {
+  user_id: string
+  guild_id: string
+  pollution_level: number
+  trash_dumped: number
+  trash_disposed: number
+}
+
+export function getOrCreatePollution(
+  userId: string,
+  guildId: string,
+): PollutionData {
+  const existing = db
+    .prepare(
+      'SELECT * FROM island_pollution WHERE user_id = ? AND guild_id = ?',
+    )
+    .get(userId, guildId) as PollutionData | undefined
+
+  if (existing) return existing
+
+  db.prepare(
+    `INSERT INTO island_pollution (user_id, guild_id) VALUES (?, ?)`,
+  ).run(userId, guildId)
+
+  return db
+    .prepare(
+      'SELECT * FROM island_pollution WHERE user_id = ? AND guild_id = ?',
+    )
+    .get(userId, guildId) as PollutionData
+}
+
+export function addPollution(userId: string, guildId: string, amount: number) {
+  getOrCreatePollution(userId, guildId)
+  db.prepare(
+    `UPDATE island_pollution SET pollution_level = MIN(10, MAX(0, pollution_level + ?)), trash_dumped = trash_dumped + 1 WHERE user_id = ? AND guild_id = ?`,
+  ).run(amount, userId, guildId)
+}
+
+export function reducePollution(
+  userId: string,
+  guildId: string,
+  amount: number,
+) {
+  getOrCreatePollution(userId, guildId)
+  db.prepare(
+    `UPDATE island_pollution SET pollution_level = MAX(0, pollution_level - ?), trash_disposed = trash_disposed + 1 WHERE user_id = ? AND guild_id = ?`,
+  ).run(amount, userId, guildId)
+}
+
+// Water treatment building passively reduces pollution
+export function applyWaterTreatment(
+  userId: string,
+  guildId: string,
+  treatmentLevel: number,
+) {
+  const reductionPerLevel = 0.5 // each level reduces 0.5 pollution
+  const reduction = treatmentLevel * reductionPerLevel
+  getOrCreatePollution(userId, guildId)
+  db.prepare(
+    `UPDATE island_pollution SET pollution_level = MAX(0, pollution_level - ?) WHERE user_id = ? AND guild_id = ?`,
+  ).run(reduction, userId, guildId)
+}
+
+// ──────────────────────────────────────
+//  Trash Inventory
+// ──────────────────────────────────────
+
+export interface TrashItem {
+  id: number
+  user_id: string
+  guild_id: string
+  trash_name: string
+  trash_emoji: string
+  disposal_cost: number
+  pollution_amount: number
+  picked_up_at: string
+}
+
+export function addTrash(
+  userId: string,
+  guildId: string,
+  trash: {
+    trash_name: string
+    trash_emoji: string
+    disposal_cost: number
+    pollution_amount: number
+  },
+) {
+  db.prepare(
+    `INSERT INTO trash_inventory (user_id, guild_id, trash_name, trash_emoji, disposal_cost, pollution_amount)
+     VALUES (?, ?, ?, ?, ?, ?)`,
+  ).run(
+    userId,
+    guildId,
+    trash.trash_name,
+    trash.trash_emoji,
+    trash.disposal_cost,
+    trash.pollution_amount,
+  )
+}
+
+export function getTrashInventory(
+  userId: string,
+  guildId: string,
+): TrashItem[] {
+  return db
+    .prepare('SELECT * FROM trash_inventory WHERE user_id = ? AND guild_id = ?')
+    .all(userId, guildId) as TrashItem[]
+}
+
+export function removeTrash(trashId: number) {
+  db.prepare('DELETE FROM trash_inventory WHERE id = ?').run(trashId)
+}
+
+export function removeAllTrashByUser(userId: string, guildId: string) {
+  db.prepare(
+    'DELETE FROM trash_inventory WHERE user_id = ? AND guild_id = ?',
+  ).run(userId, guildId)
+}
+
+// ──────────────────────────────────────
+//  HP System helpers
+// ──────────────────────────────────────
+
+export function isPlayerDead(userId: string, guildId: string): boolean {
+  const player = getOrCreatePlayer(userId, guildId, '')
+  return player.hp <= 0
+}
+
+export function getHealCost(player: Player): number {
+  // Cost scales with level: base 30G + 10G per level
+  return 30 + player.level * 10
+}

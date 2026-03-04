@@ -12,6 +12,7 @@ import {
   hasEffect,
   applyStatusEffect,
   getEffectiveStats,
+  isPlayerDead,
   chance,
   random,
   pick,
@@ -160,6 +161,16 @@ export async function execute(interaction: ChatInputCommandInteraction) {
   const guildId = interaction.guildId!
   const attacker = getOrCreatePlayer(user.id, guildId, user.username)
   const defender = getOrCreatePlayer(target.id, guildId, target.username)
+
+  // HP=0 death check
+  if (isPlayerDead(user.id, guildId)) {
+    await interaction.reply({
+      content:
+        '💀 HP가 0입니다! 활동할 수 없습니다.\n`/heal`로 회복하거나 `/daily`로 보상을 받으세요.',
+      ephemeral: true,
+    })
+    return
+  }
 
   if (hasEffect(user.id, guildId, 'stunned')) {
     await interaction.reply({ content: '😵 기절 상태에서는 전투할 수 없어요!' })

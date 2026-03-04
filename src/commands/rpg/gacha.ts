@@ -8,6 +8,7 @@ import {
   addGold,
   addItem,
   addTitle,
+  isPlayerDead,
   pick,
   sleep,
 } from '../../db/helpers.js'
@@ -42,6 +43,16 @@ export async function execute(interaction: ChatInputCommandInteraction) {
   const guildId = interaction.guildId!
 
   const player = getOrCreatePlayer(user.id, guildId, user.username)
+
+  // HP=0 death check
+  if (isPlayerDead(user.id, guildId)) {
+    await interaction.reply({
+      content:
+        '💀 HP가 0입니다! 활동할 수 없습니다.\n`/heal`로 회복하거나 `/daily`로 보상을 받으세요.',
+      ephemeral: true,
+    })
+    return
+  }
 
   if (player.gold < 100) {
     await interaction.reply({
