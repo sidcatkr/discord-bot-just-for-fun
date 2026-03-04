@@ -373,7 +373,7 @@ export function sleep(ms: number): Promise<void> {
 }
 
 // ──────────────────────────────────────
-//  Effective Stats (with equipped item)
+//  Effective Stats (auto-equip all items)
 // ──────────────────────────────────────
 
 export interface EffectiveStats {
@@ -382,7 +382,11 @@ export interface EffectiveStats {
   max_hp: number
   crit_rate: number
   evasion: number
-  equippedItem: InventoryItem | undefined
+  items: InventoryItem[]
+  totalAttackBonus: number
+  totalDefenseBonus: number
+  totalHpBonus: number
+  totalCritBonus: number
 }
 
 export function getEffectiveStats(
@@ -390,14 +394,23 @@ export function getEffectiveStats(
   guildId: string,
 ): EffectiveStats {
   const player = getOrCreatePlayer(userId, guildId, '')
-  const item = getEquippedItem(userId)
+  const items = getInventory(userId)
+
+  const totalAttackBonus = items.reduce((s, i) => s + i.attack_bonus, 0)
+  const totalDefenseBonus = items.reduce((s, i) => s + i.defense_bonus, 0)
+  const totalHpBonus = items.reduce((s, i) => s + i.hp_bonus, 0)
+  const totalCritBonus = items.reduce((s, i) => s + i.crit_bonus, 0)
 
   return {
-    attack: player.attack + (item?.attack_bonus ?? 0),
-    defense: player.defense + (item?.defense_bonus ?? 0),
-    max_hp: player.max_hp + (item?.hp_bonus ?? 0),
-    crit_rate: player.crit_rate + (item?.crit_bonus ?? 0),
+    attack: player.attack + totalAttackBonus,
+    defense: player.defense + totalDefenseBonus,
+    max_hp: player.max_hp + totalHpBonus,
+    crit_rate: player.crit_rate + totalCritBonus,
     evasion: player.evasion,
-    equippedItem: item,
+    items,
+    totalAttackBonus,
+    totalDefenseBonus,
+    totalHpBonus,
+    totalCritBonus,
   }
 }

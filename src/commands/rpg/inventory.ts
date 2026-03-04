@@ -3,7 +3,11 @@ import {
   EmbedBuilder,
   SlashCommandBuilder,
 } from 'discord.js'
-import { getInventory, equipItem, getOrCreatePlayer } from '../../db/helpers.js'
+import {
+  getInventory,
+  getOrCreatePlayer,
+  getEffectiveStats,
+} from '../../db/helpers.js'
 
 const rarityLabels: Record<string, string> = {
   common: '⬜ 일반',
@@ -14,48 +18,24 @@ const rarityLabels: Record<string, string> = {
   mythic: '🟥 신화',
 }
 
+const rarityOrder: Record<string, number> = {
+  mythic: 0,
+  legendary: 1,
+  epic: 2,
+  rare: 3,
+  uncommon: 4,
+  common: 5,
+}
+
 export const data = new SlashCommandBuilder()
   .setName('inventory')
-  .setDescription('🎒 인벤토리를 확인합니다')
-  .addStringOption((opt) =>
-    opt
-      .setName('action')
-      .setDescription('행동')
-      .addChoices(
-        { name: '📋 목록 보기', value: 'list' },
-        { name: '⚔️ 장착하기', value: 'equip' },
-      ),
-  )
-  .addIntegerOption((opt) =>
-    opt.setName('item_id').setDescription('장착할 아이템 ID (equip 시)'),
-  )
+  .setDescription('🎒 인벤토리를 확인합니다 (모든 아이템 자동 장착!)')
 
 export async function execute(interaction: ChatInputCommandInteraction) {
   const user = interaction.user
   const guildId = interaction.guildId!
-  const action = interaction.options.getString('action') ?? 'list'
-  const itemId = interaction.options.getInteger('item_id')
 
   getOrCreatePlayer(user.id, guildId, user.username)
-
-  if (action === 'equip' && itemId) {
-    const items = getInventory(user.id)
-    const item = items.find((i) => i.id === itemId)
-    if (!item) {
-      await interaction.reply({
-        content: '❌ 해당 아이템을 찾을 수 없습니다!',
-        ephemeral: true,
-      })
-      return
-    }
-    equipItem(user.id, itemId)
-    await interaction.reply({
-      content: `✅ **${item.item_emoji} ${item.item_name}** 을(를) 장착했습니다!`,
-    })
-    return
-  }
-
-  // List inventory
   const items = getInventory(user.id)
 
   if (items.length === 0) {
@@ -66,8 +46,15 @@ export async function execute(interaction: ChatInputCommandInteraction) {
     return
   }
 
+  // Sort by rarity (best first)
+  items.sort(
+    (a, b) =>
+      (rarityOrder[a.item_rarity] ?? 99) - (rarityOrder[b.item_rarity] ?? 99),
+  )
+
+  const effective = getEffectiveStats(user.id, guildId)
+
   const lines = items.map((item) => {
-    const equipped = item.equipped ? ' **[장착중]**' : ''
     const stats: string[] = []
     if (item.attack_bonus > 0) stats.push(`⚔️+${item.attack_bonus}`)
     if (item.defense_bonus > 0) stats.push(`🛡️+${item.defense_bonus}`)
@@ -75,7 +62,7 @@ export async function execute(interaction: ChatInputCommandInteraction) {
     if (item.crit_bonus > 0)
       stats.push(`🎯+${(item.crit_bonus * 100).toFixed(0)}%`)
 
-    return `${item.item_emoji} **${item.item_name}** (${rarityLabels[item.item_rarity] ?? item.item_rarity}) [ID:${item.id}]${equipped}\n  ${stats.join(' | ')}`
+    return `${item.item_emoji} **${item.item_name}** (${rarityLabels[item.item_rarity] ?? item.item_rarity})\n  ${stats.join(' | ')}`
   })
 
   // Paginate if too many
@@ -83,12 +70,25 @@ export async function execute(interaction: ChatInputCommandInteraction) {
   const pages = Math.ceil(lines.length / pageSize)
   const page1 = lines.slice(0, pageSize)
 
+  // Total bonus summary
+  const bonusSummary = [
+    `⚔️ 공격력 +${effective.totalAttackBonus}`,
+    `🛡️ 방어력 +${effective.totalDefenseBonus}`,
+    `❤️ HP +${effective.totalHpBonus}`,
+    `🎯 크리티컬 +${(effective.totalCritBonus * 100).toFixed(0)}%`,
+  ].join(' | ')
+
   const embed = new EmbedBuilder()
     .setColor(0xffd700)
     .setTitle(`🎒 ${user.username}의 인벤토리`)
-    .setDescription(page1.join('\n\n'))
+    .setDescription(
+      `📦 **보유 아이템: ${items.length}개** (전부 자동 장착!)\n` +
+        `🔰 **총 보너스:** ${bonusSummary}\n\n` +
+        `─────────────────────\n\n` +
+        page1.join('\n\n'),
+    )
     .setFooter({
-      text: `총 ${items.length}개 아이템 | 장착: /inventory action:장착하기 item_id:[ID]${pages > 1 ? ` | 페이지 1/${pages}` : ''}`,
+      text: `모든 아이템이 자동으로 적용됩니다!${pages > 1 ? ` | 페이지 1/${pages}` : ''}`,
     })
     .setTimestamp()
 

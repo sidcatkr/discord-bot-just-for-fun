@@ -181,12 +181,12 @@ export async function execute(interaction: ChatInputCommandInteraction) {
     .setDescription(
       `**전투 준비 중...**\n\n` +
         `🔴 ${user.username} — HP: ${attacker.hp}/${atkStats.max_hp} | ⚔️${atkStats.attack} 🛡️${atkStats.defense}` +
-        (atkStats.equippedItem
-          ? ` | ${atkStats.equippedItem.item_emoji} ${atkStats.equippedItem.item_name}`
+        (atkStats.items.length > 0
+          ? ` | 📦 아이템 ${atkStats.items.length}개`
           : '') +
         `\n🔵 ${target.username} — HP: ${defender.hp}/${defStats.max_hp} | ⚔️${defStats.attack} 🛡️${defStats.defense}` +
-        (defStats.equippedItem
-          ? ` | ${defStats.equippedItem.item_emoji} ${defStats.equippedItem.item_name}`
+        (defStats.items.length > 0
+          ? ` | 📦 아이템 ${defStats.items.length}개`
           : ''),
     )
   await interaction.reply({ embeds: [introEmbed] })

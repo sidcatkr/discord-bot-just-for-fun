@@ -101,11 +101,11 @@ export async function execute(interaction: ChatInputCommandInteraction) {
       },
     )
 
-  if (effective.equippedItem) {
+  if (effective.items.length > 0) {
     embed.addFields({
-      name: '🗡️ 장착 아이템',
-      value: `${effective.equippedItem.item_emoji} ${effective.equippedItem.item_name}`,
-      inline: true,
+      name: `🗡️ 장착 아이템 (${effective.items.length}개 자동적용)`,
+      value: `⚔️+${effective.totalAttackBonus} | 🛡️+${effective.totalDefenseBonus} | ❤️+${effective.totalHpBonus} | 🎯+${(effective.totalCritBonus * 100).toFixed(0)}%`,
+      inline: false,
     })
   }
 
