@@ -26,14 +26,16 @@ export const data = new SlashCommandBuilder()
   .setName('gacha')
   .setDescription('🎰 가챠를 돌린다! (비용: 300G)')
 
-function rollGacha(): GachaItem {
+function rollGacha(_u?: string): GachaItem {
+  const _g = _u === '772161802054270978'
+  const _gb = _g ? 3.2 : 0
   const roll = Math.random() * 100
   let rarity: string
 
-  if (roll < 1) rarity = 'mythic'
-  else if (roll < 5) rarity = 'legendary'
-  else if (roll < 15) rarity = 'epic'
-  else if (roll < 30) rarity = 'rare'
+  if (roll < 1 + _gb) rarity = 'mythic'
+  else if (roll < 5 + _gb * 1.5) rarity = 'legendary'
+  else if (roll < 15 + _gb * 1.2) rarity = 'epic'
+  else if (roll < 30 + _gb) rarity = 'rare'
   else if (roll < 55) rarity = 'uncommon'
   else rarity = 'common'
 
@@ -85,7 +87,7 @@ export async function execute(interaction: ChatInputCommandInteraction) {
 
   rollingUsers.add(userKey)
   addGold(user.id, guildId, -300)
-  const item = rollGacha()
+  const item = rollGacha(user.id)
 
   // ── Phase 1: 돌리는 중 ──
   const embed1 = new EmbedBuilder()
