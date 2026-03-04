@@ -34,8 +34,7 @@ export async function execute(interaction: ChatInputCommandInteraction) {
   await interaction.deferReply()
 
   const guild = interaction.guild!
-  const members = await guild.members.fetch()
-  const humanMembers = members.filter((m) => !m.user.bot)
+  const humanMembers = guild.members.cache.filter((m) => !m.user.bot)
 
   const tierMap: Record<string, string[]> = {}
   for (const tier of tiers) {

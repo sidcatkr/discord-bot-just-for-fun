@@ -155,6 +155,24 @@ db.exec(`
     pollution_amount REAL DEFAULT 2,
     picked_up_at TEXT NOT NULL DEFAULT (datetime('now'))
   );
+
+  CREATE TABLE IF NOT EXISTS pets (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id TEXT NOT NULL,
+    guild_id TEXT NOT NULL,
+    pet_name TEXT NOT NULL,
+    pet_emoji TEXT DEFAULT '🐾',
+    pet_rarity TEXT NOT NULL DEFAULT 'common',
+    pet_type TEXT NOT NULL DEFAULT 'normal',
+    attack_bonus INTEGER DEFAULT 0,
+    defense_bonus INTEGER DEFAULT 0,
+    hp_bonus INTEGER DEFAULT 0,
+    luck_bonus REAL DEFAULT 0,
+    gold_bonus REAL DEFAULT 0,
+    xp_bonus REAL DEFAULT 0,
+    equipped INTEGER DEFAULT 0,
+    obtained_at TEXT NOT NULL DEFAULT (datetime('now'))
+  );
 `)
 
 export default db

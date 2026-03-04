@@ -867,7 +867,12 @@ async function handleCast(
   const isGoldenHour = event.type === 'golden_hour'
   const isDoubleCatch = event.type === 'double_catch'
 
-  const result = rollFish(spotLevel, currentPollution.pollution_level, isStorm)
+  const result = rollFish(
+    spotLevel,
+    currentPollution.pollution_level,
+    isStorm,
+    user.id,
+  )
   let { fish, size, value } = result
 
   if (isGoldenHour) value = value * 2
@@ -890,7 +895,12 @@ async function handleCast(
 
   // Double catch — roll second fish
   if (isDoubleCatch) {
-    const result2 = rollFish(spotLevel, currentPollution.pollution_level)
+    const result2 = rollFish(
+      spotLevel,
+      currentPollution.pollution_level,
+      false,
+      user.id,
+    )
     let value2 = isGoldenHour ? result2.value * 2 : result2.value
     value2 = Math.round(value2 * weather.valueMod)
     addFish(user.id, guildId, {

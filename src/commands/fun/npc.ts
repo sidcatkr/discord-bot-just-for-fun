@@ -86,8 +86,9 @@ export async function execute(interaction: ChatInputCommandInteraction) {
   await interaction.deferReply()
 
   const guild = interaction.guild!
-  const members = await guild.members.fetch()
-  const humanMembers = [...members.filter((m) => !m.user.bot).values()]
+  const humanMembers = [
+    ...guild.members.cache.filter((m) => !m.user.bot).values(),
+  ]
 
   if (humanMembers.length === 0) {
     await interaction.editReply({ content: 'NPC로 만들 사람이 없습니다!' })

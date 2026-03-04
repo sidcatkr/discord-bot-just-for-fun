@@ -563,14 +563,14 @@ export function addIslandXp(
   amount: number,
 ): boolean {
   const island = getOrCreateIsland(userId, guildId)
-  if (island.island_level >= 5) return false // max level
+  if (island.island_level >= 10) return false // max level
 
   const newXp = island.island_xp + amount
   const xpNeeded = island.island_level * 500
 
   if (newXp >= xpNeeded) {
     db.prepare(
-      `UPDATE islands SET island_xp = ?, island_level = MIN(5, island_level + 1) WHERE user_id = ? AND guild_id = ?`,
+      `UPDATE islands SET island_xp = ?, island_level = MIN(10, island_level + 1) WHERE user_id = ? AND guild_id = ?`,
     ).run(newXp - xpNeeded, userId, guildId)
     return true
   }
@@ -813,4 +813,90 @@ export function isPlayerDead(userId: string, guildId: string): boolean {
 export function getHealCost(player: Player): number {
   // Cost scales with level: base 30G + 10G per level
   return 30 + player.level * 10
+}
+
+// ──────────────────────────────────────
+//  Pet System
+// ──────────────────────────────────────
+
+export interface Pet {
+  id: number
+  user_id: string
+  guild_id: string
+  pet_name: string
+  pet_emoji: string
+  pet_rarity: string
+  pet_type: string
+  attack_bonus: number
+  defense_bonus: number
+  hp_bonus: number
+  luck_bonus: number
+  gold_bonus: number
+  xp_bonus: number
+  equipped: number
+  obtained_at: string
+}
+
+export function addPet(
+  userId: string,
+  guildId: string,
+  pet: Omit<Pet, 'id' | 'user_id' | 'guild_id' | 'equipped' | 'obtained_at'>,
+) {
+  db.prepare(
+    `INSERT INTO pets (user_id, guild_id, pet_name, pet_emoji, pet_rarity, pet_type, attack_bonus, defense_bonus, hp_bonus, luck_bonus, gold_bonus, xp_bonus) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+  ).run(
+    userId,
+    guildId,
+    pet.pet_name,
+    pet.pet_emoji,
+    pet.pet_rarity,
+    pet.pet_type,
+    pet.attack_bonus,
+    pet.defense_bonus,
+    pet.hp_bonus,
+    pet.luck_bonus,
+    pet.gold_bonus,
+    pet.xp_bonus,
+  )
+}
+
+export function getPets(userId: string, guildId: string): Pet[] {
+  return db
+    .prepare('SELECT * FROM pets WHERE user_id = ? AND guild_id = ?')
+    .all(userId, guildId) as Pet[]
+}
+
+export function getEquippedPet(
+  userId: string,
+  guildId: string,
+): Pet | undefined {
+  return db
+    .prepare(
+      'SELECT * FROM pets WHERE user_id = ? AND guild_id = ? AND equipped = 1',
+    )
+    .get(userId, guildId) as Pet | undefined
+}
+
+export function equipPet(userId: string, guildId: string, petId: number) {
+  db.prepare(
+    'UPDATE pets SET equipped = 0 WHERE user_id = ? AND guild_id = ?',
+  ).run(userId, guildId)
+  db.prepare(
+    'UPDATE pets SET equipped = 1 WHERE id = ? AND user_id = ? AND guild_id = ?',
+  ).run(petId, userId, guildId)
+}
+
+export function unequipAllPets(userId: string, guildId: string) {
+  db.prepare(
+    'UPDATE pets SET equipped = 0 WHERE user_id = ? AND guild_id = ?',
+  ).run(userId, guildId)
+}
+
+export function getPetCount(userId: string, guildId: string): number {
+  const row = db
+    .prepare(
+      'SELECT COUNT(*) as cnt FROM pets WHERE user_id = ? AND guild_id = ?',
+    )
+    .get(userId, guildId) as { cnt: number }
+  return row.cnt
 }

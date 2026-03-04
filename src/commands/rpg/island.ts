@@ -42,10 +42,10 @@ const BUILDINGS: BuildingInfo[] = [
     emoji: '🎣',
     description:
       '물고기를 낚을 수 있는 장소. 레벨이 높을수록 좋은 물고기가 나옵니다.',
-    maxLevel: 5,
+    maxLevel: 10,
     baseCost: 200,
     costMultiplier: 2.5,
-    incomePerHour: [0, 0, 0, 0, 0], // No passive income, but better fish
+    incomePerHour: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0], // No passive income, but better fish
     requiredIslandLevel: 1,
   },
   {
