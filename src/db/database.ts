@@ -98,6 +98,41 @@ db.exec(`
     earned_at TEXT NOT NULL DEFAULT (datetime('now')),
     UNIQUE(user_id, guild_id, title)
   );
+
+  -- Fish collection
+  CREATE TABLE IF NOT EXISTS fish_collection (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id TEXT NOT NULL,
+    guild_id TEXT NOT NULL,
+    fish_name TEXT NOT NULL,
+    fish_rarity TEXT NOT NULL DEFAULT 'common',
+    fish_emoji TEXT DEFAULT '🐟',
+    fish_size REAL DEFAULT 1.0,
+    fish_value INTEGER DEFAULT 10,
+    caught_at TEXT NOT NULL DEFAULT (datetime('now'))
+  );
+
+  -- Islands
+  CREATE TABLE IF NOT EXISTS islands (
+    user_id TEXT NOT NULL,
+    guild_id TEXT NOT NULL,
+    island_name TEXT DEFAULT '이름없는 섬',
+    island_level INTEGER DEFAULT 1,
+    island_xp INTEGER DEFAULT 0,
+    last_collect TEXT DEFAULT NULL,
+    PRIMARY KEY (user_id, guild_id)
+  );
+
+  -- Island buildings
+  CREATE TABLE IF NOT EXISTS island_buildings (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id TEXT NOT NULL,
+    guild_id TEXT NOT NULL,
+    building_type TEXT NOT NULL,
+    building_level INTEGER DEFAULT 1,
+    built_at TEXT NOT NULL DEFAULT (datetime('now')),
+    UNIQUE(user_id, guild_id, building_type)
+  );
 `)
 
 export default db

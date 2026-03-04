@@ -414,3 +414,230 @@ export function getEffectiveStats(
     totalCritBonus,
   }
 }
+
+// ──────────────────────────────────────
+//  Fish Collection
+// ──────────────────────────────────────
+
+export interface CaughtFish {
+  id: number
+  user_id: string
+  guild_id: string
+  fish_name: string
+  fish_rarity: string
+  fish_emoji: string
+  fish_size: number
+  fish_value: number
+  caught_at: string
+}
+
+export function addFish(
+  userId: string,
+  guildId: string,
+  fish: {
+    fish_name: string
+    fish_rarity: string
+    fish_emoji: string
+    fish_size: number
+    fish_value: number
+  },
+) {
+  db.prepare(
+    `INSERT INTO fish_collection (user_id, guild_id, fish_name, fish_rarity, fish_emoji, fish_size, fish_value)
+     VALUES (?, ?, ?, ?, ?, ?, ?)`,
+  ).run(
+    userId,
+    guildId,
+    fish.fish_name,
+    fish.fish_rarity,
+    fish.fish_emoji,
+    fish.fish_size,
+    fish.fish_value,
+  )
+}
+
+export function getFishCollection(
+  userId: string,
+  guildId: string,
+): CaughtFish[] {
+  return db
+    .prepare(
+      'SELECT * FROM fish_collection WHERE user_id = ? AND guild_id = ? ORDER BY fish_value DESC',
+    )
+    .all(userId, guildId) as CaughtFish[]
+}
+
+export function getUniqueFishCount(userId: string, guildId: string): number {
+  const row = db
+    .prepare(
+      'SELECT COUNT(DISTINCT fish_name) as cnt FROM fish_collection WHERE user_id = ? AND guild_id = ?',
+    )
+    .get(userId, guildId) as { cnt: number }
+  return row.cnt
+}
+
+export function getBiggestFish(
+  userId: string,
+  guildId: string,
+): CaughtFish | undefined {
+  return db
+    .prepare(
+      'SELECT * FROM fish_collection WHERE user_id = ? AND guild_id = ? ORDER BY fish_size DESC LIMIT 1',
+    )
+    .get(userId, guildId) as CaughtFish | undefined
+}
+
+export function getTotalFishValue(userId: string, guildId: string): number {
+  const row = db
+    .prepare(
+      'SELECT COALESCE(SUM(fish_value), 0) as total FROM fish_collection WHERE user_id = ? AND guild_id = ?',
+    )
+    .get(userId, guildId) as { total: number }
+  return row.total
+}
+
+// ──────────────────────────────────────
+//  Islands
+// ──────────────────────────────────────
+
+export interface Island {
+  user_id: string
+  guild_id: string
+  island_name: string
+  island_level: number
+  island_xp: number
+  last_collect: string | null
+}
+
+export interface IslandBuilding {
+  id: number
+  user_id: string
+  guild_id: string
+  building_type: string
+  building_level: number
+  built_at: string
+}
+
+export function getOrCreateIsland(userId: string, guildId: string): Island {
+  const existing = db
+    .prepare('SELECT * FROM islands WHERE user_id = ? AND guild_id = ?')
+    .get(userId, guildId) as Island | undefined
+
+  if (existing) return existing
+
+  db.prepare(`INSERT INTO islands (user_id, guild_id) VALUES (?, ?)`).run(
+    userId,
+    guildId,
+  )
+
+  return db
+    .prepare('SELECT * FROM islands WHERE user_id = ? AND guild_id = ?')
+    .get(userId, guildId) as Island
+}
+
+export function updateIsland(
+  userId: string,
+  guildId: string,
+  updates: Partial<Omit<Island, 'user_id' | 'guild_id'>>,
+) {
+  const keys = Object.keys(updates)
+  const values = Object.values(updates)
+  const setClause = keys.map((k) => `${k} = ?`).join(', ')
+  db.prepare(
+    `UPDATE islands SET ${setClause} WHERE user_id = ? AND guild_id = ?`,
+  ).run(...values, userId, guildId)
+}
+
+export function addIslandXp(
+  userId: string,
+  guildId: string,
+  amount: number,
+): boolean {
+  const island = getOrCreateIsland(userId, guildId)
+  if (island.island_level >= 5) return false // max level
+
+  const newXp = island.island_xp + amount
+  const xpNeeded = island.island_level * 500
+
+  if (newXp >= xpNeeded) {
+    db.prepare(
+      `UPDATE islands SET island_xp = ?, island_level = MIN(5, island_level + 1) WHERE user_id = ? AND guild_id = ?`,
+    ).run(newXp - xpNeeded, userId, guildId)
+    return true
+  }
+  db.prepare(
+    `UPDATE islands SET island_xp = ? WHERE user_id = ? AND guild_id = ?`,
+  ).run(newXp, userId, guildId)
+  return false
+}
+
+export function getIslandBuildings(
+  userId: string,
+  guildId: string,
+): IslandBuilding[] {
+  return db
+    .prepare(
+      'SELECT * FROM island_buildings WHERE user_id = ? AND guild_id = ?',
+    )
+    .all(userId, guildId) as IslandBuilding[]
+}
+
+export function getIslandBuilding(
+  userId: string,
+  guildId: string,
+  buildingType: string,
+): IslandBuilding | undefined {
+  return db
+    .prepare(
+      'SELECT * FROM island_buildings WHERE user_id = ? AND guild_id = ? AND building_type = ?',
+    )
+    .get(userId, guildId, buildingType) as IslandBuilding | undefined
+}
+
+export function buildOrUpgrade(
+  userId: string,
+  guildId: string,
+  buildingType: string,
+): IslandBuilding {
+  const existing = getIslandBuilding(userId, guildId, buildingType)
+  if (existing) {
+    db.prepare(
+      `UPDATE island_buildings SET building_level = building_level + 1 WHERE user_id = ? AND guild_id = ? AND building_type = ?`,
+    ).run(userId, guildId, buildingType)
+  } else {
+    db.prepare(
+      `INSERT INTO island_buildings (user_id, guild_id, building_type) VALUES (?, ?, ?)`,
+    ).run(userId, guildId, buildingType)
+  }
+  return getIslandBuilding(userId, guildId, buildingType)!
+}
+
+// Get gold ranking
+export function getGoldRanking(guildId: string, limit = 10): Player[] {
+  return db
+    .prepare(
+      'SELECT * FROM players WHERE guild_id = ? ORDER BY gold DESC LIMIT ?',
+    )
+    .all(guildId, limit) as Player[]
+}
+
+// Get unique item names a user has collected
+export function getCollectedItemNames(userId: string): string[] {
+  const rows = db
+    .prepare('SELECT DISTINCT item_name FROM inventory WHERE user_id = ?')
+    .all(userId) as { item_name: string }[]
+  return rows.map((r) => r.item_name)
+}
+
+// Get unique fish names a user has collected
+export function getCollectedFishNames(
+  userId: string,
+  guildId: string,
+): string[] {
+  const rows = db
+    .prepare(
+      'SELECT DISTINCT fish_name FROM fish_collection WHERE user_id = ? AND guild_id = ?',
+    )
+    .all(userId, guildId) as { fish_name: string }[]
+  return rows.map((r) => r.fish_name)
+}
