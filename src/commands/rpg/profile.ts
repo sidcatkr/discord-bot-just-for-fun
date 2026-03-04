@@ -65,16 +65,19 @@ export async function execute(interaction: ChatInputCommandInteraction) {
       '🏥 병원 가세요. 진지하게.',
       '🩸 반창고 붙이는 것으로는 부족합니다.',
       '⚠️ HP가 빨간불입니다. 위험합니다.',
+      '🚑 이 상태로 낚시하면 물고기가 당신을 낚습니다.',
     )
   } else if (player.gold > 100000) {
     flavorTexts.push(
       '💰 부자입니다. 세금 내세요.',
       '🤑 이 정도면 나라 하나 세울 수 있습니다.',
+      '🏦 은행에서 전화 왔습니다. VIP 등급이랍니다.',
     )
   } else if (player.gold <= 0) {
     flavorTexts.push(
-      '💸 무일푸입니다. 문자 그대로.',
+      '💸 무일푼입니다. 문자 그대로.',
       '🪣 통장 잔고: 0G. 꿈도 희망도 없습니다. (/daily)',
+      '💸 긴급 대출 서비스는 준비 중입니다.',
     )
   }
   if (flavorTexts.length > 0) {

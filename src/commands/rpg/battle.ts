@@ -43,6 +43,12 @@ const attackVerbs = [
   '"ㅋㅋ 약한데?" 라며 도발했다',
   '카카오톡 읽씹으로 정신 공격했다',
   'PPT 발표를 시켰다 (치명적)',
+  '수질 오염 데이터를 보여줬다 (환경 테러)',
+  '코드 리뷰를 요청했다 (정신적 업방미진)',
+  '가챠 10연 콄번 영수증을 보여줬다',
+  '섬 수익 결산서를 날렸다',
+  '찌로 후려쳤다 (낚싯대 공격)',
+  '난발 냄새 나는 쓰레기를 던졌다',
 ]
 
 const dodgeMessages = [
@@ -54,6 +60,9 @@ const dodgeMessages = [
   '"그건 내 잔상이다" 를 시전했다!',
   '아이폰을 방패로 사용했다! (화면은 깨졌다)',
   '분신술을 사용했다! (실패해서 본체가 피했다)',
+  '낚싯대를 막대처럼 자다! (나마스터)',
+  '공격을 손으로 잡았다! ( ?!)',
+  '쓰레기를 뜰져 엄폐했다! (환경 테러)',
 ]
 
 const critMessages = [
@@ -287,8 +296,8 @@ export async function execute(interaction: ChatInputCommandInteraction) {
     }
   }
 
-  const xpReward = random(15, 40)
-  const goldReward = random(10, 30)
+  const xpReward = random(20, 60)
+  const goldReward = random(30, 80)
 
   if (winnerId) {
     const leveledUp = addXp(winnerId, guildId, xpReward)

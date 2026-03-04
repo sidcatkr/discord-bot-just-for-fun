@@ -18,6 +18,7 @@ import {
   getOrCreatePollution,
   addPollution,
   reducePollution,
+  increasePassivePollution,
   addTrash,
   getTrashInventory,
   removeAllTrashByUser,
@@ -66,6 +67,16 @@ const fishingMessages = [
   '찌가 안 움직인다. 나도 안 움직인다. 우리 둘 다 NPC다.',
   '이 낚시터 리뷰: ★☆☆☆☆ "물고기 없음"',
   '사실 물고기가 날 낚시하고 있는 건 아닐까...',
+  '물고기: (회의 중) "저거 미끼인 거 다 알지?"',
+  '갈매기가 날 비웃고 있다...',
+  '다리가 저려온다... 이게 맞나...',
+  '옆자리에서 5연속 전설급 뽑음. 난 쓰레기 3연속. 공평하다.',
+  '바다에 지갑 떨어뜨릴 뻔함...',
+  'BGM: lofi hip hop radio - beats to fish/relax to',
+  '물고기 AI가 오늘 특히 똑똑한 것 같다...',
+  '찌를 바라보니 인생이 보인다...',
+  '"아 옛날에 이 자리에서 크라켄 잡았는데"  (거짓말)',
+  '물고기한테 DM 보내고 싶다...',
 ]
 
 // Real bite messages — player SHOULD press the button
@@ -97,7 +108,92 @@ const fakeBiteMessages = [
   '🔔 전설의 물고기가!!!... 꿈이었다',
   '🔔 AI가 입질이라고 합니다!! (신뢰도 2%)',
   '🔔 뭔가 올라온다!! ...해파리다.',
+  '🔔 물고기가 찌를 쳐다보고 갔다!!',
+  '🔔 찌가 흔들린... 내 손이 떨린 거였다',
+  '🔔 잠깐!! 아무것도 아니었다!!',
+  '🔔 옆 낚시꾼이 재채기를 해서 흔들렸다!!',
+  '🔔 바닷속에서 박수 소리가?!?!',
+  '🔔 찌: (도발 모드) 흔들흔들~',
+  '🔔 고래가 지나가면서 파도가 왔다!!',
 ]
+
+// ── Weather system ──
+interface Weather {
+  name: string
+  emoji: string
+  valueMod: number // multiplier for fish value
+  message: string
+}
+
+const WEATHERS: Weather[] = [
+  {
+    name: '맑음',
+    emoji: '☀️',
+    valueMod: 1.0,
+    message: '맑은 하늘 아래 낚시 중!',
+  },
+  {
+    name: '흐림',
+    emoji: '☁️',
+    valueMod: 1.0,
+    message: '흐린 날이지만 물고기는 잘 물어요.',
+  },
+  {
+    name: '비',
+    emoji: '🌧️',
+    valueMod: 1.15,
+    message: '비가 오면 물고기가 활발해집니다!',
+  },
+  {
+    name: '폭우',
+    emoji: '⛈️',
+    valueMod: 1.3,
+    message: '폭우 속의 낚시! 대어 확률 UP!',
+  },
+  {
+    name: '안개',
+    emoji: '🌫️',
+    valueMod: 0.9,
+    message: '안개가 자욱해서 앞이 안 보입니다...',
+  },
+  {
+    name: '무지개',
+    emoji: '🌈',
+    valueMod: 1.5,
+    message: '무지개가 떴다! 행운의 낚시!',
+  },
+  {
+    name: '눈',
+    emoji: '❄️',
+    valueMod: 0.8,
+    message: '눈이 오는데 왜 낚시를 하는 거죠...',
+  },
+  {
+    name: '태풍',
+    emoji: '🌪️',
+    valueMod: 1.4,
+    message: '태풍 속 낚시! 미쳤지만 대어가 올 수도!',
+  },
+  {
+    name: '달빛',
+    emoji: '🌙',
+    valueMod: 1.2,
+    message: '달빛 아래 로맨틱한 낚시...',
+  },
+]
+
+function getWeather(): Weather {
+  const roll = Math.random() * 100
+  if (roll < 2) return WEATHERS[7] // 태풍 2%
+  if (roll < 5) return WEATHERS[5] // 무지개 3%
+  if (roll < 10) return WEATHERS[3] // 폭우 5%
+  if (roll < 15) return WEATHERS[6] // 눈 5%
+  if (roll < 25) return WEATHERS[2] // 비 10%
+  if (roll < 35) return WEATHERS[4] // 안개 10%
+  if (roll < 45) return WEATHERS[8] // 달빛 10%
+  if (roll < 70) return WEATHERS[1] // 흐림 25%
+  return WEATHERS[0] // 맑음 30%
+}
 
 export async function execute(interaction: ChatInputCommandInteraction) {
   const action = interaction.options.getString('action')
@@ -140,11 +236,22 @@ async function handleCast(
   const spotLevel = fishingSpot?.building_level ?? 1
   const pollution = getOrCreatePollution(user.id, guildId)
 
-  // Water treatment passively reduces pollution each fishing attempt
+  // ── Passive pollution: fishing naturally degrades water quality ──
   const waterTreatment = getIslandBuilding(user.id, guildId, 'water_treatment')
-  if (waterTreatment && pollution.pollution_level > 0) {
-    const reduction = waterTreatment.building_level * 0.3
-    reducePollution(user.id, guildId, reduction)
+  const factory = getIslandBuilding(user.id, guildId, 'factory')
+  const basePollutionIncrease = 0.15 // base pollution per cast
+  const factoryPollution = factory ? factory.building_level * 0.08 : 0 // factories pollute
+  const treatmentReduction = waterTreatment
+    ? waterTreatment.building_level * 0.06
+    : 0
+  const netPollutionChange =
+    basePollutionIncrease + factoryPollution - treatmentReduction
+
+  if (netPollutionChange > 0) {
+    increasePassivePollution(user.id, guildId, netPollutionChange)
+  } else if (netPollutionChange < 0 && pollution.pollution_level > 0) {
+    // Water treatment is strong enough to actively clean
+    reducePollution(user.id, guildId, Math.abs(netPollutionChange))
   }
 
   // Get current pollution after treatment
@@ -159,16 +266,32 @@ async function handleCast(
   // ── Roll fishing event ──
   const event = rollFishingEvent(spotLevel, currentPollution.pollution_level)
 
+  // ── Weather ──
+  const weather = getWeather()
+
   // ── Phase 1: 낚시 시작 ──
+  const pollutionDelta =
+    netPollutionChange > 0
+      ? `📈 오염 +${netPollutionChange.toFixed(2)}/회`
+      : netPollutionChange < 0
+        ? `📉 정화 ${Math.abs(netPollutionChange).toFixed(2)}/회`
+        : ''
+
   const embed1 = new EmbedBuilder()
     .setColor(0x1e90ff)
-    .setTitle('🎣 낚시 중...')
+    .setTitle(`🎣 ${island.island_name}에서 낚시 중...`)
     .setDescription(
-      `> 🌊 ～～～🎣\n\n` +
+      `> 🏝️ **${island.island_name}** 낚시터\n` +
+        `> ${weather.emoji} ${weather.message}\n` +
+        `> 🌊 ～～～🎣\n\n` +
         `**${pick(fishingMessages)}**\n` +
-        `낚시터 레벨: ⭐ ${spotLevel}` +
+        `낚시터 레벨: ⭐ ${spotLevel} | 날씨: ${weather.emoji} ${weather.name}` +
+        `${weather.valueMod !== 1.0 ? ` (가치 ×${weather.valueMod})` : ''}` +
         `${pollutionWarning}`,
     )
+  if (pollutionDelta) {
+    embed1.setFooter({ text: pollutionDelta })
+  }
   await interaction.reply({ embeds: [embed1] })
 
   // ── LINE BREAK (no button phase) ──
@@ -181,8 +304,11 @@ async function handleCast(
         `> 🌊 ～💥～ 🎣💢\n\n` +
           `**${event.message}**\n\n` +
           `낚싯줄이 끊어져서 아무것도 못 잡았습니다...\n` +
-          `${currentPollution.pollution_level >= 5 ? '🏭 수질 오염이 심해서 줄이 약해진 것 같습니다...' : '다음에는 운이 좋을 거예요!'}`,
+          `${currentPollution.pollution_level >= 5 ? '🏭 수질 오염이 심해서 줄이 약해진 것 같습니다... 수질 관리 시설을 지으세요!' : '다음에는 운이 좋을 거예요!'}`,
       )
+      .setFooter({
+        text: `🏝️ ${island.island_name} | 오염도: ${currentPollution.pollution_level.toFixed(1)}/10`,
+      })
       .setTimestamp()
     await interaction.editReply({ embeds: [lineBreakEmbed] })
     return
@@ -227,15 +353,22 @@ async function handleCast(
 
       if (fakeCollector) {
         // User fell for the fake! Fail!
+        const failMessages = [
+          '물고기가 놀라서 도망갔습니다... 🐟💨',
+          '물고기: "참을성 제로ㅋ" 🐟💨',
+          '물고기들이 수군수군합니다... "저 사람 또 속았대" 🐟💨',
+          '물고기가 박수를 치며 떠났습니다 🐟👏',
+        ]
         const failEmbed = new EmbedBuilder()
           .setColor(0xe74c3c)
           .setTitle('❌ 속았다!')
           .setDescription(
             `> 🌊 ～～～🎣\n\n` +
               `**가짜 입질에 속아서 줄을 잡아당겨버렸습니다!**\n\n` +
-              `물고기가 놀라서 도망갔습니다... 🐟💨\n` +
+              `${pick(failMessages)}\n` +
               `다음에는 진짜 입질을 기다리세요!`,
           )
+          .setFooter({ text: `🏝️ ${island.island_name}` })
           .setTimestamp()
         await fakeCollector.update({ embeds: [failEmbed], components: [] })
         return
@@ -302,15 +435,24 @@ async function handleCast(
   }
 
   if (!pulled) {
+    const missMessages = [
+      '물고기가 미끼만 먹고 도망갔습니다... 🐟💨',
+      '물고기: "ㅋㅋ 느리네~" 🐟💨',
+      '물고기가 손가락 하트를 날리고 사라졌습니다 🐟💕',
+      '반응속도 테스트 결과: 불합격 🐟💨',
+      '물고기가 미끼를 뱉으면서 혀를 내밀었습니다 🐟👅',
+      '물고기: "다음에 봐~" (안 볼 예정) 🐟💨',
+    ]
     const missEmbed = new EmbedBuilder()
       .setColor(0xe74c3c)
       .setTitle('💨 놓쳤다!')
       .setDescription(
         `> 🌊 ～～～🎣\n\n` +
           `**타이밍을 놓쳤습니다!**\n\n` +
-          `물고기가 미끼만 먹고 도망갔습니다... 🐟💨\n` +
+          `${pick(missMessages)}\n` +
           `다음에는 더 빨리 반응하세요!`,
       )
+      .setFooter({ text: `🏝️ ${island.island_name}` })
       .setTimestamp()
     await interaction.editReply({ embeds: [missEmbed], components: [] })
     return
@@ -343,7 +485,7 @@ async function handleCast(
           `\`/fish action:💀 바다에 버리기\` — 바다에 버리기 (수질 오염 증가!)`,
       )
       .setFooter({
-        text: `현재 수질 오염도: ${currentPollution.pollution_level.toFixed(1)}/10`,
+        text: `🏝️ ${island.island_name} | 수질 오염도: ${currentPollution.pollution_level.toFixed(1)}/10`,
       })
       .setTimestamp()
     await interaction.editReply({ embeds: [trashEmbed] })
@@ -352,9 +494,9 @@ async function handleCast(
 
   // ── TREASURE EVENT ──
   if (event.type === 'treasure') {
-    const treasureGold = random(100, 500)
+    const treasureGold = random(200, 1000)
     addGold(user.id, guildId, treasureGold)
-    addIslandXp(user.id, guildId, 30)
+    addIslandXp(user.id, guildId, 50)
 
     const treasureEmbed = new EmbedBuilder()
       .setColor(0xffd700)
@@ -363,8 +505,9 @@ async function handleCast(
         `> ✨🎁✨\n\n` +
           `바다 속에서 보물 상자를 발견했습니다!\n\n` +
           `💰 **+${treasureGold}G** 획득!\n` +
-          `🏝️ 섬 경험치 +30`,
+          `🏝️ 섬 경험치 +50`,
       )
+      .setFooter({ text: `🏝️ ${island.island_name}` })
       .setTimestamp()
     await interaction.editReply({ embeds: [treasureEmbed] })
     return
@@ -438,6 +581,7 @@ async function handleCast(
           : `${monster.emoji} 바다 괴물에게 패배...`,
       )
       .setDescription(battleLines.join('\n'))
+      .setFooter({ text: `🏝️ ${island.island_name} 해역` })
       .setTimestamp()
     await interaction.editReply({ embeds: [monsterEmbed] })
     return
@@ -452,6 +596,8 @@ async function handleCast(
   let { fish, size, value } = result
 
   if (isGoldenHour) value = value * 2
+  // Apply weather modifier
+  value = Math.round(value * weather.valueMod)
 
   // Save first fish
   addFish(user.id, guildId, {
@@ -470,7 +616,8 @@ async function handleCast(
   // Double catch — roll second fish
   if (isDoubleCatch) {
     const result2 = rollFish(spotLevel, currentPollution.pollution_level)
-    const value2 = isGoldenHour ? result2.value * 2 : result2.value
+    let value2 = isGoldenHour ? result2.value * 2 : result2.value
+    value2 = Math.round(value2 * weather.valueMod)
     addFish(user.id, guildId, {
       fish_name: result2.fish.name,
       fish_rarity: result2.fish.rarity,
@@ -510,7 +657,8 @@ async function handleCast(
         `등급: ${fishRarityLabels[fish.rarity]}\n` +
         `크기: **${sizeText}**\n` +
         `판매가: **${value}G** 💰` +
-        `${isGoldenHour ? ' (✨ 2배!)' : ''}\n\n` +
+        `${isGoldenHour ? ' (✨ 2배!)' : ''}` +
+        `${weather.valueMod !== 1.0 ? ` (${weather.emoji} ×${weather.valueMod})` : ''}\n\n` +
         `> *${fish.description}*` +
         secondFishText,
     )
@@ -545,7 +693,7 @@ async function handleCast(
   }
 
   resultEmbed.setFooter({
-    text: `낚시터 ⭐${spotLevel} | +${totalValue}G | 섬XP +${isDoubleCatch ? 20 : 10} | 오염도: ${currentPollution.pollution_level.toFixed(1)}/10`,
+    text: `🏝️ ${island.island_name} | ${weather.emoji}${weather.name} | ⭐${spotLevel} | +${totalValue}G | 섬XP +${isDoubleCatch ? 20 : 10} | 오염도: ${currentPollution.pollution_level.toFixed(1)}/10`,
   })
   resultEmbed.setTimestamp()
 
@@ -663,6 +811,7 @@ async function handlePollution(
 ) {
   getOrCreatePlayer(user.id, guildId, user.username)
   const pollution = getOrCreatePollution(user.id, guildId)
+  const island = getOrCreateIsland(user.id, guildId)
 
   const level = pollution.pollution_level
   const pollutionBar = makePollutionBar(level)
@@ -687,23 +836,47 @@ async function handlePollution(
   }
 
   const waterTreatment = getIslandBuilding(user.id, guildId, 'water_treatment')
+  const factory = getIslandBuilding(user.id, guildId, 'factory')
+
+  const basePollution = 0.15
+  const factoryPollution = factory ? factory.building_level * 0.08 : 0
+  const treatmentReduction = waterTreatment
+    ? waterTreatment.building_level * 0.06
+    : 0
+  const netChange = basePollution + factoryPollution - treatmentReduction
+
   const treatmentInfo = waterTreatment
-    ? `🚰 수질 관리 시설 Lv.${waterTreatment.building_level} — 낚시할 때마다 오염도 ${(waterTreatment.building_level * 0.3).toFixed(1)} 감소`
+    ? `🚰 수질 관리 시설 Lv.${waterTreatment.building_level} — 처리 능력: -${treatmentReduction.toFixed(2)}/회`
     : '🚰 수질 관리 시설 없음 — `/island build`에서 건설 가능'
+
+  const factoryInfo = factory
+    ? `🏭 공장 Lv.${factory.building_level} — 오염 증가: +${factoryPollution.toFixed(2)}/회`
+    : ''
+
+  const netChangeText =
+    netChange > 0
+      ? `📈 낚시 시 오염도 **+${netChange.toFixed(2)}** 증가`
+      : netChange < 0
+        ? `📉 낚시 시 오염도 **${netChange.toFixed(2)}** 감소 (정화 중!)`
+        : '⚖️ 낚시 시 오염도 변화 없음 (균형)'
 
   const embed = new EmbedBuilder()
     .setColor(color)
-    .setTitle('🌊 수질 오염도')
+    .setTitle(`🌊 ${island.island_name} 수질 오염도`)
     .setDescription(
       `**오염도:** ${pollutionBar} **${level.toFixed(1)}/10**\n\n` +
         `${status}\n\n` +
         `📊 **통계:**\n` +
         `🗑️ 버린 쓰레기: ${pollution.trash_dumped}개\n` +
         `♻️ 처리한 쓰레기: ${pollution.trash_disposed}개\n\n` +
-        `${treatmentInfo}`,
+        `⚙️ **오염 요인 분석:**\n` +
+        `🎣 기본 오염: +${basePollution.toFixed(2)}/회\n` +
+        `${factoryInfo ? factoryInfo + '\n' : ''}` +
+        `${treatmentInfo}\n\n` +
+        `**${netChangeText}**`,
     )
     .setFooter({
-      text: '오염이 높을수록 좋은 물고기 확률↓ 쓰레기 확률↑ 줄 끊김↑',
+      text: '오염이 높을수록 좋은 물고기 확률↓ 쓰레기 확률↑ 줄 끊김↑ | 수질 관리 시설을 지어라!',
     })
     .setTimestamp()
 

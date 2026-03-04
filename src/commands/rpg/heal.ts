@@ -107,6 +107,8 @@ export async function execute(interaction: ChatInputCommandInteraction) {
     'HP 관리 좀 하세요... 제발...',
     '부활 횟수가 누적되고 있습니다. 보험료가 오를 수 있습니다.',
     '여기가 어디냐고요? 병원이요. 세 번째 방문이시네요.',
+    '사망 원인: 수질 오염된 물고기 섭취 (수질 관리 하세요)',
+    '이번 부활 할인 쿠폰: STOP_DYING_2024',
   ]
   const healQuotes = [
     '다음에는 좀 덜 맞고 오세요.',
@@ -115,6 +117,8 @@ export async function execute(interaction: ChatInputCommandInteraction) {
     '회복 완료! 바로 전투하러 가시면 또 오실 겁니다.',
     '의사 선생님이 "또 오지 마세요"라고 하셨습니다.',
     '치료비가 갈수록 비싸지는 건 기분 탓이 아닙니다.',
+    '의사: "치료보다 오염 안 된 물 좀 드세요"',
+    '옆 환자는 물고기에게 물려서 왔다고 합니다.',
   ]
 
   const embed = new EmbedBuilder()

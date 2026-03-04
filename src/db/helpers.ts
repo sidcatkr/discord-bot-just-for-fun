@@ -732,6 +732,18 @@ export function applyWaterTreatment(
   ).run(reduction, userId, guildId)
 }
 
+// Passive pollution increase (e.g. from fishing, factories) — does NOT increment trash_dumped
+export function increasePassivePollution(
+  userId: string,
+  guildId: string,
+  amount: number,
+) {
+  getOrCreatePollution(userId, guildId)
+  db.prepare(
+    `UPDATE island_pollution SET pollution_level = MIN(10, MAX(0, pollution_level + ?)) WHERE user_id = ? AND guild_id = ?`,
+  ).run(amount, userId, guildId)
+}
+
 // ──────────────────────────────────────
 //  Trash Inventory
 // ──────────────────────────────────────

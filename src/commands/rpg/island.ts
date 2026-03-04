@@ -63,7 +63,8 @@ const BUILDINGS: BuildingInfo[] = [
     type: 'factory',
     name: '공장',
     emoji: '🏭',
-    description: '자동으로 골드를 생산하지만 환경을 오염시킵니다.',
+    description:
+      '자동으로 골드를 생산하지만 환경을 오염시킵니다. 레벨 당 낚시 시 오염 +0.08.',
     maxLevel: 5,
     baseCost: 500,
     costMultiplier: 2,
@@ -75,7 +76,7 @@ const BUILDINGS: BuildingInfo[] = [
     name: '수질 관리 시설',
     emoji: '🚰',
     description:
-      '오염된 바다를 정화합니다. 낚시할 때마다 오염도를 자동 감소시킵니다.',
+      '오염된 바다를 정화합니다. 없으면 낚시할 때마다 수질이 나빠집니다! 공장 오염도 처리합니다.',
     maxLevel: 5,
     baseCost: 600,
     costMultiplier: 2.5,
@@ -369,10 +370,16 @@ async function handleView(
         : ' | **MAX**'
 
     if (info.type === 'water_treatment') {
-      const reduction = (b.building_level * 0.3).toFixed(1)
+      const reduction = (b.building_level * 0.06).toFixed(2)
       buildingLines.push(
         `${info.emoji} **${info.name}** ${levelStars}\n` +
-          `  효과: 낚시 시 오염도 -${reduction}${nextLevelText}`,
+          `  효과: 낚시 시 오염 정화 -${reduction}/회${nextLevelText}`,
+      )
+    } else if (info.type === 'factory') {
+      const pollutionAdd = (b.building_level * 0.08).toFixed(2)
+      buildingLines.push(
+        `${info.emoji} **${info.name}** ${levelStars}\n` +
+          `  수입: ${income}G/시간 | ⚠️ 오염 +${pollutionAdd}/회${nextLevelText}`,
       )
     } else if (info.type === 'hospital') {
       buildingLines.push(
@@ -454,6 +461,15 @@ async function handleView(
     '주민 만족도: 측정 불가 (주민이 없음)',
     '섬 관광 리뷰: ★★☆☆☆ "볼 게 없음"',
     '건축 허가 없이 짓고 있습니다. 쉿.',
+    '섬 통계: 공장 오염 > 관광 수입. 자본주의.',
+    '수질 관리 시설이 없으면 물고기가 이사갑니다.',
+    '이 섬의 유일한 주민은 당신입니다. 외롭지 않으세요?',
+    '건물 레벨을 올리면 행복해질 수 있습니다. (보장 안 됨)',
+    '섬 경찰 보고서: 불법 투기 혐의자 1명 (당신)',
+    '오늘의 섬 뉴스: "주민, 또 낚시만 함"',
+    '환경부 경고: 오염도 관리 안 하면 벌금 부과 (예정)',
+    '부동산 시세: 감정 불가. 감정사가 안 옴.',
+    '이 섬에서 가장 비싼 것: 수질 관리 시설 유지비',
   ]
   embed.setFooter({ text: pick(islandQuotes) })
   embed.setTimestamp()
@@ -516,12 +532,14 @@ async function handleBuild(
 
   const incomeText =
     info.type === 'water_treatment'
-      ? `효과: 낚시 시 오염도 **-${(building.building_level * 0.3).toFixed(1)}**`
-      : info.type === 'hospital'
-        ? `유지비: **${Math.abs(income)}G/시간** | HP 회복`
-        : income < 0
-          ? `시간당 유지비: **${Math.abs(income)}G/시간**`
-          : `시간당 수입: **${income}G/시간**`
+      ? `효과: 낚시 시 오염 정화 **-${(building.building_level * 0.06).toFixed(2)}/회**`
+      : info.type === 'factory'
+        ? `시간당 수입: **${income}G/시간** | ⚠️ 오염 +${(building.building_level * 0.08).toFixed(2)}/회`
+        : info.type === 'hospital'
+          ? `유지비: **${Math.abs(income)}G/시간** | HP 회복`
+          : income < 0
+            ? `시간당 유지비: **${Math.abs(income)}G/시간**`
+            : `시간당 수입: **${income}G/시간**`
 
   const embed = new EmbedBuilder()
     .setColor(0x2ecc71)
