@@ -91,6 +91,16 @@ const fishingMessages = [
   '프로 낚시꾼 팁: 물고기한테 인사하면 잘 잡힌다 (아님)',
   '물고기가 CCTV 보는 것처럼 미끼만 관찰하고 있다...',
   '지금 이 순간에도 누군가는 신화급을 잡고 있다... (나 제외)',
+  '물고기가 찌찌를 물었다!! 아 가짜다...',
+  '찌: "날 좀 그만 쳐다봐..." (찌도 지쳤다)',
+  '물고기가 미끼를 먹고 도망갈 확률: 99.7%',
+  '낚시 = 물 앞에서 멍 때리기 시뮬레이터',
+  '물고기가 내 미끼 사진 찍어서 인스타에 올렸다... #오늘의미끼 #별로',
+  '찌가 자기도 공무원이라며 칼퇴근했다...',
+  '물고기: "그 미끼 유통기한 지났는데요" 🐟🤮',
+  '옆 낚시꾼이 치킨 시켜먹고 있다... 나도 먹고 싶다...',
+  '물고기가 미끼에 1원 놓고 갔다. 팁인가?',
+  '찌를 던졌더니 갈매기가 낚였다... 아 갈매기 놔줘...',
 ]
 
 // Real bite messages — player SHOULD press the button
@@ -100,6 +110,10 @@ const realBiteMessages = [
   '🔔 뭔가 강하게 당긴다!!',
   '🔔 묵직한 손맛!!',
   '🔔 찌가 물속으로 빨려들어간다!!',
+  '🔔 진짜다!! 이번엔 진짜!!',
+  '🔔 찌가 완전히 가라앉았다!!',
+  '🔔 낚싯대가 활처럼 휜다!!',
+  '🔔 번호 따기 성공!! 아니 입질 성공!!',
 ]
 
 // Fake bait messages — player should NOT press (instant fail if they press)
@@ -135,6 +149,18 @@ const fakeBiteMessages = [
   '🔔 찌가 춤을 추고 있다!! (자기가 알아서)',
   '🔔 인어가 손흔들고 갔다!! (환각)',
   '🔔 물고기가 찌를 업어갔다가 돌려놓았다!!',
+  '🔔 물고기가 찌찌를 물었다!!',
+  '🔔 찌가 아파합니다!! 아 찌찌가 아프다고!!',
+  '🔔 물고기가 가슴이 웅장해진다!!',
+  '🔔 물속에서 "사랑해요" 소리가?! (공기방울)',
+  '🔔 찌가 자기 위에 물고기 올라탔다고 함!!',
+  '🔔 물고기가 미끼 배달 시켰다!! (쿠팡이츠)',
+  '🔔 찌가 SOS 신호를 보내고 있다!!',
+  '🔔 물 밑에서 뭔가 회의 중인 소리가!!',
+  '🔔 물고기가 미끼에 별점 1점 남겼다!!',
+  '🔔 찌가 셀카를 찍고 있다!! (자아 발견)',
+  '🔔 물고기: "야 쟤 또 낚시질이래" (비웃음)',
+  '🔔 바다에서 택배가 도착했습니다!! (오배송)',
 ]
 
 // ── Weather system ──
@@ -334,9 +360,11 @@ async function handleCast(
     return
   }
 
-  // ── Timing minigame: fake bait → real bite ──
-  // Decide how many fake baits to show (0-2)
-  const fakeCount = random(0, 2)
+  // ── Timing minigame: fake bait → real bite (or not!) ──
+  // Decide how many fake baits to show (0-3)
+  // 20% chance that no real bite comes (fish just leaves)
+  const fakeCount = random(0, 3)
+  const noRealBite = Math.random() < 0.2
   const buttonId = `fish_pull_${user.id}_${Date.now()}`
 
   for (let i = 0; i < fakeCount; i++) {
@@ -378,6 +406,10 @@ async function handleCast(
           '물고기: "참을성 제로ㅋ" 🐟💨',
           '물고기들이 수군수군합니다... "저 사람 또 속았대" 🐟💨',
           '물고기가 박수를 치며 떠났습니다 🐟👏',
+          '물고기: "ㅋㅋㅋ 또 걸렸다 야 단톡방에 올려" 🐟📱',
+          '물고기가 미끼를 보고 한숨을 쉬었습니다... 🐟😮‍💨',
+          '찌가 당신에게 실망했습니다... 찌: "더 이상 못 참아" 🎣💔',
+          '물고기: "에이~ 성급하면 못 잡아~" (선생님 모드) 🐟👨‍🏫',
         ]
         const failEmbed = new EmbedBuilder()
           .setColor(0xe74c3c)
@@ -398,13 +430,53 @@ async function handleCast(
     }
 
     // Remove the button after fake phase
+    const waitMessages = [
+      '아닌 것 같다... 계속 기다린다...',
+      '가짜였다... 물고기 이 녀석...',
+      '찌가 거짓말을 했다... 믿었는데...',
+      '아무것도 아니었다... 내 심장만 뛰었다...',
+      '물고기가 장난치고 갔다... 🐟💨',
+      '헛둘헛둘... 계속 기다려본다...',
+    ]
     const waitEmbed = new EmbedBuilder()
       .setColor(0x1e90ff)
       .setTitle('🎣 낚시 중...')
-      .setDescription(
-        `> 🌊 ～～～🎣\n\n` + `**아닌 것 같다... 계속 기다린다...**`,
-      )
+      .setDescription(`> 🌊 ～～～🎣\n\n` + `**${pick(waitMessages)}**`)
     await interaction.editReply({ embeds: [waitEmbed], components: [] })
+  }
+
+  // ── No real bite — fish just never came ──
+  if (noRealBite) {
+    await sleep(random(2000, 4000))
+    const noBiteMessages = [
+      '오늘은 물고기가 출근을 안 한 것 같습니다... 🐟💤',
+      '물고기들이 단체로 파업 중이랍니다... 🐟✊',
+      '찌만 바라보다가 시간이 다 갔습니다... ⏰',
+      '물고기: "오늘 쉬는 날임" (단톡방 공지) 🐟📢',
+      '미끼가 너무 수상해서 아무도 안 물었습니다... 🎣',
+      '찌가 외로워하고 있습니다... 아무도 안 왔어요... 🎣😢',
+      '물고기가 찌를 구경만 하고 갔습니다. 관광이었나봅니다. 🐟📸',
+      '오늘의 조황: 꽝. 완전한 꽝. 역대급 꽝. 🏆',
+      '물고기가 미끼를 보고 "에이 또 저거네" 하고 갔습니다 🐟🙄',
+      '바다가 오늘 휴무라고 합니다. 내일 다시 오세요. 🌊🚫',
+      '물고기한테 차였습니다. 연애 실패 느낌... 💔🐟',
+      '찌만 던지고 멍 때리다 왔습니다. 명상 완료. 🧘',
+    ]
+    const noBiteEmbed = new EmbedBuilder()
+      .setColor(0x95a5a6)
+      .setTitle('🎣 ... 아무것도 안 잡혔다')
+      .setDescription(
+        `> 🌊 ～～～🎣\n\n` +
+          `**한참을 기다렸지만 입질이 없었습니다...**\n\n` +
+          `${pick(noBiteMessages)}\n\n` +
+          `> *낚시는 원래 이런 겁니다. 인내의 스포츠.*`,
+      )
+      .setFooter({
+        text: `🏝️ ${island.island_name} | 오염도: ${currentPollution.pollution_level.toFixed(1)}/10 | 오늘의 운세: 💩`,
+      })
+      .setTimestamp()
+    await interaction.editReply({ embeds: [noBiteEmbed], components: [] })
+    return
   }
 
   // ── Real bite phase ──
