@@ -197,8 +197,9 @@ async function handleCast(
     await sleep(random(1500, 3000))
 
     const fakeMsg = pick(fakeBiteMessages)
+    const fakeCustomId = `${buttonId}_fake_${i}`
     const fakeButton = new ButtonBuilder()
-      .setCustomId(`${buttonId}_fake_${i}`)
+      .setCustomId(fakeCustomId)
       .setLabel('🎣 당긴다!')
       .setStyle(ButtonStyle.Danger)
     const fakeRow = new ActionRowBuilder<ButtonBuilder>().addComponents(
@@ -218,8 +219,9 @@ async function handleCast(
     try {
       const fakeCollector = await interaction.channel?.awaitMessageComponent({
         componentType: ComponentType.Button,
-        filter: (i) =>
-          i.customId === `${buttonId}_fake_${i}` && i.user.id === user.id,
+        filter: (btnInteraction) =>
+          btnInteraction.customId === fakeCustomId &&
+          btnInteraction.user.id === user.id,
         time: 3000,
       })
 
