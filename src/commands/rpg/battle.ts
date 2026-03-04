@@ -17,6 +17,7 @@ import {
   random,
   pick,
   sleep,
+  type EffectiveStats,
 } from '../../db/helpers.js'
 
 export const data = new SlashCommandBuilder()
@@ -37,6 +38,11 @@ const attackVerbs = [
   '감자를 투척했다',
   '정의의 곰손을 휘둘렀다',
   '음파 공격을 시전했다',
+  '키보드를 던졌다 (무선)',
+  '밈 이미지를 던졌다 (정신적 데미지)',
+  '"ㅋㅋ 약한데?" 라며 도발했다',
+  '카카오톡 읽씹으로 정신 공격했다',
+  'PPT 발표를 시켰다 (치명적)',
 ]
 
 const dodgeMessages = [
@@ -45,6 +51,9 @@ const dodgeMessages = [
   '순간이동으로 피했다!',
   '바닥에 엎드려 피했다!',
   '거울을 꺼내 반사했다!',
+  '"그건 내 잔상이다" 를 시전했다!',
+  '아이폰을 방패로 사용했다! (화면은 깨졌다)',
+  '분신술을 사용했다! (실패해서 본체가 피했다)',
 ]
 
 const critMessages = [
@@ -88,10 +97,13 @@ function simulateBattle(
         Math.max(1, atkStats.attack - defStats.defense),
         atkStats.attack + 5,
       )
-      if (isCrit) dmg = Math.floor(dmg * 2)
+      if (isCrit) dmg = Math.floor(dmg * atkStats.crit_damage)
 
       lines.push(`⚔️ ${userName}이(가) ${pick(attackVerbs)}!`)
-      if (isCrit) lines.push(pick(critMessages))
+      if (isCrit)
+        lines.push(
+          `${pick(critMessages)} (💥 ${Math.floor(atkStats.crit_damage * 100)}% 데미지)`,
+        )
       lines.push(`🩸 ${targetName} HP -${dmg}${isCrit ? '!' : ''}`)
       defenderHp -= dmg
     }
@@ -113,10 +125,13 @@ function simulateBattle(
         Math.max(1, defStats.attack - atkStats.defense),
         defStats.attack + 5,
       )
-      if (isCrit) dmg = Math.floor(dmg * 2)
+      if (isCrit) dmg = Math.floor(dmg * defStats.crit_damage)
 
       lines.push(`⚔️ ${targetName}이(가) 반격! ${pick(attackVerbs)}!`)
-      if (isCrit) lines.push(pick(critMessages))
+      if (isCrit)
+        lines.push(
+          `${pick(critMessages)} (💥 ${Math.floor(defStats.crit_damage * 100)}% 데미지)`,
+        )
       lines.push(`🩸 ${userName} HP -${dmg}${isCrit ? '!' : ''}`)
       attackerHp -= dmg
     }
@@ -143,8 +158,14 @@ export async function execute(interaction: ChatInputCommandInteraction) {
   const user = interaction.user
 
   if (target.id === user.id) {
+    const selfBattleReplies = [
+      '🤦 자해하지 마세요... 상담 전화: 1393',
+      '🪞 거울이랑 싸우지 마세요. 항상 비깁니다.',
+      '🧠 자기 자신과의 싸움은 /heal 로 해결하세요.',
+      '💀 셀프 PvP는 서비스 약관 위반입니다.',
+    ]
     await interaction.reply({
-      content: '🤦 자해하지 마세요... 상담 전화: 1393',
+      content: pick(selfBattleReplies),
       ephemeral: true,
     })
     return
@@ -164,9 +185,13 @@ export async function execute(interaction: ChatInputCommandInteraction) {
 
   // HP=0 death check
   if (isPlayerDead(user.id, guildId)) {
+    const deathMessages = [
+      '💀 HP가 0입니다! 활동할 수 없습니다.\n`/heal`로 회복하거나 `/daily`로 보상을 받으세요.',
+      '💀 이미 죽어있습니다. 유령으로는 전투할 수 없습니다.\n`/heal`로 부활하세요.',
+      '💀 사망한 상태에서 전투를 시도하는 것은... 용기일까요? 망상일까요?\n`/heal`로 회복하세요.',
+    ]
     await interaction.reply({
-      content:
-        '💀 HP가 0입니다! 활동할 수 없습니다.\n`/heal`로 회복하거나 `/daily`로 보상을 받으세요.',
+      content: pick(deathMessages),
       ephemeral: true,
     })
     return

@@ -8,6 +8,7 @@ import {
   damagePlayer,
   applyStatusEffect,
   hasEffect,
+  getEffectiveStats,
   chance,
   random,
   pick,
@@ -43,8 +44,14 @@ export async function execute(interaction: ChatInputCommandInteraction) {
   const attacker = interaction.user
 
   if (target.id === attacker.id) {
+    const selfSlapReplies = [
+      '🤦 자해는 안 됩니다... 괜찮으세요?',
+      '🪞 거울 앞에서 연습하세요.',
+      '💀 자기 뺨을 때리면 손도 아프고 뺨도 아픕니다. 과학적 사실.',
+      '🤡 M이신가요? 여기는 그런 서버가 아닙니다.',
+    ]
     await interaction.reply({
-      content: '🤦 자해는 안 됩니다... 괜찮으세요?',
+      content: pick(selfSlapReplies),
       ephemeral: true,
     })
     return
@@ -70,17 +77,19 @@ export async function execute(interaction: ChatInputCommandInteraction) {
     return
   }
 
+  const stats = getEffectiveStats(attacker.id, guildId)
   const dmg = random(5, 20)
   damagePlayer(target.id, guildId, dmg)
 
-  const isCrit = chance(15) // 15% crit chance
+  const isCrit = chance(stats.crit_rate * 100) // Use player's crit rate from items
   const embed = new EmbedBuilder().setColor(isCrit ? 0xff0000 : 0xff6b6b)
 
   if (isCrit) {
+    const critDmg = Math.floor(dmg * stats.crit_damage)
     embed.setDescription(
-      `${pick(critMessages)(target.toString())}\n💔 HP -${dmg * 2}`,
+      `${pick(critMessages)(target.toString())}\n💔 HP -${critDmg} (💥 ${Math.floor(stats.crit_damage * 100)}% 크리티컬!)`,
     )
-    damagePlayer(target.id, guildId, dmg) // double damage on crit
+    damagePlayer(target.id, guildId, critDmg - dmg) // extra damage beyond base
     applyStatusEffect(target.id, guildId, 'stunned', 5, attacker.id)
 
     // Super rare: 2% chance "almost kicked"

@@ -28,6 +28,16 @@ const roasts = [
   (t: string) => `${t}은(는) 길치인데 GPS도 길을 잃을 정도입니다`,
   (t: string) => `${t}의 운동 실력은 계단 3층에 숨이 차는 수준입니다`,
   (t: string) => `${t}은(는) 갈등 상황에서 항상 풀 대신 가위를 냅니다`,
+  (t: string) => `${t}은(는) ChatGPT한테 "고마워" 라고 말하는 타입입니다`,
+  (t: string) => `${t}의 git commit 메시지: "ㅇㅇ"`,
+  (t: string) => `${t}은(는) 코드 리뷰에서 "LGTM" 만 다는 사람입니다`,
+  (t: string) => `${t}의 비밀번호는 password1234입니다`,
+  (t: string) => `${t}은(는) 스택오버플로우 복붙 장인입니다`,
+  (t: string) => `${t}은(는) 와이파이 끊기면 인생도 끊기는 타입입니다`,
+  (t: string) => `${t}은(는) 노래방에서 92점이 최고 기록입니다`,
+  (t: string) => `${t}의 카톡 프사는 2019년 것입니다`,
+  (t: string) => `${t}은(는) "읽씹 아니고 바빴어" 라고 매번 말합니다`,
+  (t: string) => `${t}은(는) Ctrl+Z 인생을 살고 있습니다`,
 ]
 
 export async function execute(interaction: ChatInputCommandInteraction) {

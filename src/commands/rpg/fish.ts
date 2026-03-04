@@ -2,6 +2,10 @@ import {
   ChatInputCommandInteraction,
   EmbedBuilder,
   SlashCommandBuilder,
+  ActionRowBuilder,
+  ButtonBuilder,
+  ButtonStyle,
+  ComponentType,
 } from 'discord.js'
 import {
   getOrCreatePlayer,
@@ -37,17 +41,15 @@ import {
 export const data = new SlashCommandBuilder()
   .setName('fish')
   .setDescription('🎣 낚시를 합니다!')
-  .addSubcommand((sub) => sub.setName('cast').setDescription('🎣 낚시하기'))
-  .addSubcommand((sub) =>
-    sub.setName('dispose').setDescription('🗑️ 쓰레기를 처리합니다 (비용 발생)'),
-  )
-  .addSubcommand((sub) =>
-    sub
-      .setName('dump')
-      .setDescription('💀 쓰레기를 바다에 버립니다 (수질 오염!)'),
-  )
-  .addSubcommand((sub) =>
-    sub.setName('pollution').setDescription('🌊 수질 오염도를 확인합니다'),
+  .addStringOption((opt) =>
+    opt
+      .setName('action')
+      .setDescription('추가 행동 (비워두면 낚시합니다)')
+      .addChoices(
+        { name: '🗑️ 쓰레기 처리', value: 'dispose' },
+        { name: '💀 바다에 버리기', value: 'dump' },
+        { name: '🌊 오염도 확인', value: 'pollution' },
+      ),
   )
 
 const fishingMessages = [
@@ -57,28 +59,58 @@ const fishingMessages = [
   '뭔가 움직이는 것 같은데...',
   '바다 냄새가 좋다...',
   '졸음이 몰려온다...',
+  '유튜브나 볼까... 아 낚시 중이었지',
+  '옆 사람은 전설급 잡았다는데...',
+  '이게 낚시인지 명상인지 모르겠다...',
+  '물고기도 퇴근 시간이 있나...',
+  '찌가 안 움직인다. 나도 안 움직인다. 우리 둘 다 NPC다.',
+  '이 낚시터 리뷰: ★☆☆☆☆ "물고기 없음"',
+  '사실 물고기가 날 낚시하고 있는 건 아닐까...',
 ]
 
-const biteMessages = [
-  '🔔 입질이 왔다!',
-  '🔔 찌가 흔들린다!',
-  '🔔 뭔가 걸렸다!',
-  '🔔 강한 손맛!',
-  '🔔 묵직한 느낌..!',
+// Real bite messages — player SHOULD press the button
+const realBiteMessages = [
+  '🔔 찌가 흔들린다!!',
+  '🔔 입질이 왔다!!',
+  '🔔 뭔가 강하게 당긴다!!',
+  '🔔 묵직한 손맛!!',
+  '🔔 찌가 물속으로 빨려들어간다!!',
+]
+
+// Fake bait messages — player should NOT press (instant fail if they press)
+const fakeBiteMessages = [
+  '🔔 찌찌가 흔들린다!!',
+  '🔔 입질이 왔다!!... 아닌가?',
+  '🔔 찌가 흔들린 것 같기도...',
+  '🔔 뭔가 잠깐 흔들렸다?!',
+  '🔔 바바바바바바밤!!!!',
+  '🔔 옆사람이 찌를 건드렸다!!',
+  '🔔 물고기가... 지나갔다!!',
+  '🔔 찌가 흔들린다!!!! (바람)',
+  '🔔 크크크큰 물고기다!!!!!',
+  '🔔 대어가 왔왔왔다!!!',
+  '🔔 찌가 미세하게 아주 약간 움직였다!!',
+  '🔔 낚싯대가 부르르르!!!... 추웠나보다',
+  '🔔 수면이 출렁출렁!!',
+  '🔔 물고기가 니 찌를 비웃고 갔다!!',
+  '🔔 찌가... 옆으로 갔다!! (조류)',
+  '🔔 전설의 물고기가!!!... 꿈이었다',
+  '🔔 AI가 입질이라고 합니다!! (신뢰도 2%)',
+  '🔔 뭔가 올라온다!! ...해파리다.',
 ]
 
 export async function execute(interaction: ChatInputCommandInteraction) {
-  const sub = interaction.options.getSubcommand()
+  const action = interaction.options.getString('action')
   const user = interaction.user
   const guildId = interaction.guildId!
 
-  if (sub === 'cast') {
+  if (!action) {
     await handleCast(interaction, user, guildId)
-  } else if (sub === 'dispose') {
+  } else if (action === 'dispose') {
     await handleDispose(interaction, user, guildId)
-  } else if (sub === 'dump') {
+  } else if (action === 'dump') {
     await handleDump(interaction, user, guildId)
-  } else if (sub === 'pollution') {
+  } else if (action === 'pollution') {
     await handlePollution(interaction, user, guildId)
   }
 }
@@ -90,9 +122,13 @@ async function handleCast(
 ) {
   // HP check
   if (isPlayerDead(user.id, guildId)) {
+    const deadFishMessages = [
+      '💀 HP가 0입니다! 활동할 수 없습니다.\n`/heal`로 회복하거나 `/daily`로 보상을 받으세요.',
+      '💀 죽은 상태로 낚시하면 본인이 물고기가 됩니다.\n`/heal`로 부활하세요.',
+      '💀 유령 낚시는 서비스 준비 중입니다.\n`/heal`로 회복하세요.',
+    ]
     await interaction.reply({
-      content:
-        '💀 HP가 0입니다! 활동할 수 없습니다.\n`/heal`로 회복하거나 `/daily`로 보상을 받으세요.',
+      content: pick(deadFishMessages),
       ephemeral: true,
     })
     return
@@ -120,6 +156,9 @@ async function handleCast(
         ? '\n⚠️ 수질 오염도가 높습니다...'
         : ''
 
+  // ── Roll fishing event ──
+  const event = rollFishingEvent(spotLevel, currentPollution.pollution_level)
+
   // ── Phase 1: 낚시 시작 ──
   const embed1 = new EmbedBuilder()
     .setColor(0x1e90ff)
@@ -132,13 +171,9 @@ async function handleCast(
     )
   await interaction.reply({ embeds: [embed1] })
 
-  await sleep(2000)
-
-  // ── Roll fishing event ──
-  const event = rollFishingEvent(spotLevel, currentPollution.pollution_level)
-
-  // ── LINE BREAK ──
+  // ── LINE BREAK (no button phase) ──
   if (event.type === 'line_break') {
+    await sleep(2000)
     const lineBreakEmbed = new EmbedBuilder()
       .setColor(0xe74c3c)
       .setTitle('💔 이런...!')
@@ -153,11 +188,86 @@ async function handleCast(
     return
   }
 
-  // ── Phase 2: 입질 ──
+  // ── Timing minigame: fake bait → real bite ──
+  // Decide how many fake baits to show (0-2)
+  const fakeCount = random(0, 2)
+  const buttonId = `fish_pull_${user.id}_${Date.now()}`
+
+  for (let i = 0; i < fakeCount; i++) {
+    await sleep(random(1500, 3000))
+
+    const fakeMsg = pick(fakeBiteMessages)
+    const fakeButton = new ButtonBuilder()
+      .setCustomId(`${buttonId}_fake_${i}`)
+      .setLabel('🎣 당긴다!')
+      .setStyle(ButtonStyle.Danger)
+    const fakeRow = new ActionRowBuilder<ButtonBuilder>().addComponents(
+      fakeButton,
+    )
+
+    const fakeEmbed = new EmbedBuilder()
+      .setColor(0xff6b35)
+      .setTitle('🎣 낚시 중...')
+      .setDescription(`> 🌊 ～💥～🎣\n\n` + `**${fakeMsg}**`)
+    await interaction.editReply({
+      embeds: [fakeEmbed],
+      components: [fakeRow],
+    })
+
+    // Wait for accidental click (3 seconds window)
+    try {
+      const fakeCollector = await interaction.channel?.awaitMessageComponent({
+        componentType: ComponentType.Button,
+        filter: (i) =>
+          i.customId === `${buttonId}_fake_${i}` && i.user.id === user.id,
+        time: 3000,
+      })
+
+      if (fakeCollector) {
+        // User fell for the fake! Fail!
+        const failEmbed = new EmbedBuilder()
+          .setColor(0xe74c3c)
+          .setTitle('❌ 속았다!')
+          .setDescription(
+            `> 🌊 ～～～🎣\n\n` +
+              `**가짜 입질에 속아서 줄을 잡아당겨버렸습니다!**\n\n` +
+              `물고기가 놀라서 도망갔습니다... 🐟💨\n` +
+              `다음에는 진짜 입질을 기다리세요!`,
+          )
+          .setTimestamp()
+        await fakeCollector.update({ embeds: [failEmbed], components: [] })
+        return
+      }
+    } catch {
+      // Timeout = good, user didn't fall for fake
+    }
+
+    // Remove the button after fake phase
+    const waitEmbed = new EmbedBuilder()
+      .setColor(0x1e90ff)
+      .setTitle('🎣 낚시 중...')
+      .setDescription(
+        `> 🌊 ～～～🎣\n\n` + `**아닌 것 같다... 계속 기다린다...**`,
+      )
+    await interaction.editReply({ embeds: [waitEmbed], components: [] })
+  }
+
+  // ── Real bite phase ──
+  await sleep(random(1500, 3500))
+
+  const realMsg = pick(realBiteMessages)
   const eventMessage =
     event.type !== 'normal' ? `\n${event.emoji} **${event.message}**` : ''
 
-  const embed2 = new EmbedBuilder()
+  const pullButton = new ButtonBuilder()
+    .setCustomId(`${buttonId}_real`)
+    .setLabel('🎣 당긴다!')
+    .setStyle(ButtonStyle.Success)
+  const pullRow = new ActionRowBuilder<ButtonBuilder>().addComponents(
+    pullButton,
+  )
+
+  const biteEmbed = new EmbedBuilder()
     .setColor(
       event.type === 'trash'
         ? 0x95a5a6
@@ -165,13 +275,47 @@ async function handleCast(
           ? 0x2c3e50
           : 0xff6b35,
     )
-    .setTitle('🎣 낚시 중...')
-    .setDescription(
-      `> 🌊 ～💥～🎣\n\n` + `**${pick(biteMessages)}**${eventMessage}`,
-    )
-  await interaction.editReply({ embeds: [embed2] })
+    .setTitle('🎣 입질이다!!')
+    .setDescription(`> 🌊 ～💥～🎣\n\n` + `**${realMsg}**${eventMessage}`)
+  await interaction.editReply({
+    embeds: [biteEmbed],
+    components: [pullRow],
+  })
 
-  await sleep(1500)
+  // Wait for button press (4 second window — not too easy)
+  let pulled = false
+  try {
+    const realCollector = await interaction.channel?.awaitMessageComponent({
+      componentType: ComponentType.Button,
+      filter: (i) => i.customId === `${buttonId}_real` && i.user.id === user.id,
+      time: 4000,
+    })
+
+    if (realCollector) {
+      pulled = true
+      await realCollector.deferUpdate()
+    }
+  } catch {
+    // Timeout = missed the fish
+  }
+
+  if (!pulled) {
+    const missEmbed = new EmbedBuilder()
+      .setColor(0xe74c3c)
+      .setTitle('💨 놓쳤다!')
+      .setDescription(
+        `> 🌊 ～～～🎣\n\n` +
+          `**타이밍을 놓쳤습니다!**\n\n` +
+          `물고기가 미끼만 먹고 도망갔습니다... 🐟💨\n` +
+          `다음에는 더 빨리 반응하세요!`,
+      )
+      .setTimestamp()
+    await interaction.editReply({ embeds: [missEmbed], components: [] })
+    return
+  }
+
+  // ── Successfully pulled! Now resolve the event ──
+  await interaction.editReply({ components: [] })
 
   // ── TRASH EVENT ──
   if (event.type === 'trash') {
@@ -193,8 +337,8 @@ async function handleCast(
           `처리 비용: **${trash.disposalCost}G** 💰\n` +
           `오염도: **+${trash.pollutionAmount}** 🏭\n\n` +
           `📌 **선택지:**\n` +
-          `\`/fish dispose\` — 비용을 내고 처리 (환경 보호!)\n` +
-          `\`/fish dump\` — 바다에 버리기 (수질 오염 증가!)`,
+          `\`/fish action:🗑️ 쓰레기 처리\` — 비용을 내고 처리 (환경 보호!)\n` +
+          `\`/fish action:💀 바다에 버리기\` — 바다에 버리기 (수질 오염 증가!)`,
       )
       .setFooter({
         text: `현재 수질 오염도: ${currentPollution.pollution_level.toFixed(1)}/10`,

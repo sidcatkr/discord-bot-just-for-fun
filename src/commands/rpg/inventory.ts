@@ -39,8 +39,15 @@ export async function execute(interaction: ChatInputCommandInteraction) {
   const items = getInventory(user.id)
 
   if (items.length === 0) {
+    const emptyBagMessages = [
+      '🎒 인벤토리가 비어있습니다! `/gacha`로 아이템을 획득하세요!',
+      '🎒 가방이 텅 비었습니다. 먼지만 쌓여있네요.',
+      '🎒 인벤토리: [ 공허함, 외로움, 먼지 ]',
+      '🎒 아이템이 없습니다. 맨손으로 싸우시겠습니까? (Y/N)',
+    ]
     await interaction.reply({
-      content: '🎒 인벤토리가 비어있습니다! `/gacha`로 아이템을 획득하세요!',
+      content:
+        emptyBagMessages[Math.floor(Math.random() * emptyBagMessages.length)],
       ephemeral: true,
     })
     return

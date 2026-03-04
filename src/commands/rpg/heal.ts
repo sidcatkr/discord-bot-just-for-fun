@@ -9,6 +9,7 @@ import {
   healPlayer,
   getHealCost,
   getEffectiveStats,
+  pick,
 } from '../../db/helpers.js'
 
 export const data = new SlashCommandBuilder()
@@ -99,6 +100,23 @@ export async function execute(interaction: ChatInputCommandInteraction) {
   const wasDead = player.hp <= 0
   const newHp = Math.min(player.hp + healAmount, stats.max_hp)
 
+  const resurrectQuotes = [
+    '병원은 리스폰 포인트가 아닙니다.',
+    '또 오셨군요. 단골 할인은 없습니다.',
+    '사망 원인: skill issue',
+    'HP 관리 좀 하세요... 제발...',
+    '부활 횟수가 누적되고 있습니다. 보험료가 오를 수 있습니다.',
+    '여기가 어디냐고요? 병원이요. 세 번째 방문이시네요.',
+  ]
+  const healQuotes = [
+    '다음에는 좀 덜 맞고 오세요.',
+    '포션 대신 밴드를 드릴까요? 더 싸요.',
+    '건강보험 적용 안 됩니다. 현금만 받아요.',
+    '회복 완료! 바로 전투하러 가시면 또 오실 겁니다.',
+    '의사 선생님이 "또 오지 마세요"라고 하셨습니다.',
+    '치료비가 갈수록 비싸지는 건 기분 탓이 아닙니다.',
+  ]
+
   const embed = new EmbedBuilder()
     .setColor(0x2ecc71)
     .setTitle(wasDead ? '🔄 부활!' : '❤️‍🩹 회복 완료!')
@@ -107,7 +125,7 @@ export async function execute(interaction: ChatInputCommandInteraction) {
         `❤️ HP: **${player.hp}** → **${newHp}/${stats.max_hp}**\n` +
         `💰 비용: **-${totalCost}G**\n` +
         `🩹 회복량: **+${healAmount} HP**\n\n` +
-        `> *${wasDead ? '다시 모험을 시작할 수 있습니다!' : '건강해졌습니다!'}*`,
+        `> *${wasDead ? pick(resurrectQuotes) : pick(healQuotes)}*`,
     )
     .setFooter({ text: `잔여 골드: ${player.gold - totalCost}G` })
     .setTimestamp()

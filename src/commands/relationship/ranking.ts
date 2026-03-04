@@ -3,64 +3,74 @@ import {
   EmbedBuilder,
   SlashCommandBuilder,
 } from 'discord.js'
-import { getTopRelationships, getMostHated } from '../../db/helpers.js'
+import { getGoldRanking, getIslandRanking } from '../../db/helpers.js'
 
 export const data = new SlashCommandBuilder()
   .setName('ranking')
-  .setDescription('👑 서버 관계 랭킹을 확인합니다')
+  .setDescription('👑 서버 랭킹을 확인합니다')
   .addStringOption((opt) =>
     opt
       .setName('type')
       .setDescription('랭킹 종류')
       .setRequired(true)
       .addChoices(
-        { name: '❤️ 호감도 TOP', value: 'love' },
-        { name: '💔 혐오도 TOP', value: 'hate' },
+        { name: '💰 골드 랭킹', value: 'gold' },
+        { name: '🏝️ 섬 랭킹', value: 'island' },
       ),
   )
+
+const medals = ['🥇', '🥈', '🥉', '4️⃣', '5️⃣', '6️⃣', '7️⃣', '8️⃣', '9️⃣', '🔟']
 
 export async function execute(interaction: ChatInputCommandInteraction) {
   const type = interaction.options.getString('type', true)
   const guildId = interaction.guildId!
 
-  if (type === 'love') {
-    const top = getTopRelationships(guildId)
-    if (top.length === 0) {
-      await interaction.reply({ content: '아직 관계 데이터가 없습니다!' })
+  if (type === 'gold') {
+    const ranking = getGoldRanking(guildId, 10)
+    if (ranking.length === 0) {
+      await interaction.reply({
+        content: '📊 아직 랭킹 데이터가 없습니다!',
+        ephemeral: true,
+      })
       return
     }
 
-    const lines = top.map((r, i) => {
-      const medal =
-        i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : `${i + 1}.`
-      const couple = r.is_couple ? ' 💑' : ''
-      return `${medal} <@${r.user1_id}> ❤️ <@${r.user2_id}> — **${r.affinity}%**${couple}`
+    const lines = ranking.map((player, i) => {
+      const medal = medals[i] ?? `${i + 1}.`
+      return `${medal} **${player.username}** — ${player.gold.toLocaleString()}G (Lv.${player.level})`
     })
 
     const embed = new EmbedBuilder()
-      .setColor(0xff69b4)
-      .setTitle('❤️ 호감도 랭킹')
+      .setColor(0xffd700)
+      .setTitle('💰 골드 랭킹 TOP 10')
       .setDescription(lines.join('\n'))
+      .setFooter({ text: '낚시, 전투, 섬에서 골드를 벌어보세요!' })
       .setTimestamp()
 
     await interaction.reply({ embeds: [embed] })
   } else {
-    const top = getMostHated(guildId)
-    if (top.length === 0) {
-      await interaction.reply({ content: '아직 관계 데이터가 없습니다!' })
+    const ranking = getIslandRanking(guildId, 10)
+    if (ranking.length === 0) {
+      await interaction.reply({
+        content: '📊 아직 섬 랭킹 데이터가 없습니다!',
+        ephemeral: true,
+      })
       return
     }
 
-    const lines = top.map((r, i) => {
-      const medal =
-        i === 0 ? '💀' : i === 1 ? '☠️' : i === 2 ? '👻' : `${i + 1}.`
-      return `${medal} <@${r.user1_id}> 💔 <@${r.user2_id}> — 신뢰도 **${r.trust}%**`
+    const islandEmojis = ['🏝️', '🌴', '🏖️', '🌋', '🌈']
+    const lines = ranking.map((island, i) => {
+      const medal = medals[i] ?? `${i + 1}.`
+      const emoji =
+        islandEmojis[Math.min(island.island_level - 1, islandEmojis.length - 1)]
+      return `${medal} **${island.username}** — ${emoji} ${island.island_name} (Lv.${island.island_level}, XP: ${island.island_xp})`
     })
 
     const embed = new EmbedBuilder()
-      .setColor(0x8b0000)
-      .setTitle('💔 혐오도 랭킹 (신뢰도 최저)')
+      .setColor(0x00d4aa)
+      .setTitle('🏝️ 섬 랭킹 TOP 10')
       .setDescription(lines.join('\n'))
+      .setFooter({ text: '낚시로 섬을 성장시키세요!' })
       .setTimestamp()
 
     await interaction.reply({ embeds: [embed] })

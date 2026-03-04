@@ -50,16 +50,28 @@ async function deploy() {
   const rest = new REST({ version: '10' }).setToken(token)
 
   try {
-    console.log(`\n🔄 Deploying ${commandData.length} commands...`)
+    console.log(`\n� Deploying ${commandData.length} commands...`)
 
     if (guildId) {
-      // Guild-specific (instant, good for development)
+      // Clear all existing guild commands first
+      await rest.put(Routes.applicationGuildCommands(clientId, guildId), {
+        body: [],
+      })
+      console.log(`🗑️ Cleared all existing guild commands`)
+
+      // Deploy new commands
       await rest.put(Routes.applicationGuildCommands(clientId, guildId), {
         body: commandData,
       })
       console.log(`✅ Successfully deployed to guild ${guildId}!`)
     } else {
-      // Global (can take up to 1 hour to propagate)
+      // Clear all existing global commands first
+      await rest.put(Routes.applicationCommands(clientId), {
+        body: [],
+      })
+      console.log(`🗑️ Cleared all existing global commands`)
+
+      // Deploy new commands
       await rest.put(Routes.applicationCommands(clientId), {
         body: commandData,
       })

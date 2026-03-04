@@ -32,12 +32,17 @@ const highIQComments = [
   '🌟 NASA에서 스카우트 제의가 올 수도 있습니다',
   '👑 이 서버의 두뇌 담당!',
   '🔬 과학적 사고의 정수!',
+  '💻 코딩을 하면 버그가 알아서 도망갑니다',
+  '📚 도서관 가면 책이 먼저 인사합니다',
 ]
 
 const negativeIQComments = [
   '💀 음수 IQ는 의학적으로 불가능한데... 기록 갱신!',
   '🕳️ 블랙홀보다 지능이 어둡습니다',
   '☠️ 뇌가 반대로 작동하고 있습니다',
+  '🪫 뇌 배터리 0%. 충전 불가.',
+  '📴 뇌가 비행기 모드입니다',
+  '🗑️ 뇌를 포맷하고 재설치하는 것을 권장합니다',
 ]
 
 export async function execute(interaction: ChatInputCommandInteraction) {

@@ -381,6 +381,7 @@ export interface EffectiveStats {
   defense: number
   max_hp: number
   crit_rate: number
+  crit_damage: number // multiplier, base 2.0 (200%)
   evasion: number
   items: InventoryItem[]
   totalAttackBonus: number
@@ -401,11 +402,19 @@ export function getEffectiveStats(
   const totalHpBonus = items.reduce((s, i) => s + i.hp_bonus, 0)
   const totalCritBonus = items.reduce((s, i) => s + i.crit_bonus, 0)
 
+  const rawCritRate = player.crit_rate + totalCritBonus
+  // Cap crit_rate at 1.0 (100%), overflow goes to crit_damage
+  const effectiveCritRate = Math.min(1, rawCritRate)
+  const overflowCrit = Math.max(0, rawCritRate - 1)
+  // Base crit damage is 2x (200%), each 1% overflow adds 1% crit damage
+  const critDamage = 2 + overflowCrit
+
   return {
     attack: player.attack + totalAttackBonus,
     defense: player.defense + totalDefenseBonus,
     max_hp: player.max_hp + totalHpBonus,
-    crit_rate: player.crit_rate + totalCritBonus,
+    crit_rate: effectiveCritRate,
+    crit_damage: critDamage,
     evasion: player.evasion,
     items,
     totalAttackBonus,
@@ -619,6 +628,20 @@ export function getGoldRanking(guildId: string, limit = 10): Player[] {
       'SELECT * FROM players WHERE guild_id = ? ORDER BY gold DESC LIMIT ?',
     )
     .all(guildId, limit) as Player[]
+}
+
+// Get island ranking (by island level then xp)
+export function getIslandRanking(
+  guildId: string,
+  limit = 10,
+): (Island & { username: string })[] {
+  return db
+    .prepare(
+      `SELECT i.*, p.username FROM islands i 
+       JOIN players p ON i.user_id = p.user_id AND i.guild_id = p.guild_id
+       WHERE i.guild_id = ? ORDER BY i.island_level DESC, i.island_xp DESC LIMIT ?`,
+    )
+    .all(guildId, limit) as (Island & { username: string })[]
 }
 
 // Get unique item names a user has collected

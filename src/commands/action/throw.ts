@@ -17,7 +17,7 @@ export const data = new SlashCommandBuilder()
   .setName('throw')
   .setDescription('🚀 누군가를 우주로 던진다!')
   .addUserOption((opt) =>
-    opt.setName('target').setDescription('던질 대상').setRequired(true)
+    opt.setName('target').setDescription('던질 대상').setRequired(true),
   )
 
 const throwDestinations = [
@@ -31,6 +31,12 @@ const throwDestinations = [
   { place: '2090년 미래 ⏰', emoji: '🤖', time: 30 },
   { place: '마인크래프트 세계 ⛏️', emoji: '🟫', time: 7 },
   { place: '남극 🧊', emoji: '🐧', time: 12 },
+  { place: '대학교 과제방 📝', emoji: '😱', time: 99 },
+  { place: '월요일 아침 ⏰', emoji: '😵', time: 25 },
+  { place: 'IE6 브라우저 속 🌐', emoji: '💀', time: 60 },
+  { place: 'npm install 대기줄 📦', emoji: '⏳', time: 45 },
+  { place: '어머니 잔소리 차원 👩', emoji: '📢', time: 10 },
+  { place: '배달 예상시간 "곧 도착" 🛵', emoji: '🍕', time: 999 },
 ]
 
 export async function execute(interaction: ChatInputCommandInteraction) {
@@ -72,7 +78,7 @@ export async function execute(interaction: ChatInputCommandInteraction) {
     .setDescription(
       `${dest.emoji} ${target.toString()}을(를) **${dest.place}**로 던졌습니다!\n` +
         `⏱️ ${dest.time}초 뒤 귀환 예정...\n` +
-        `💔 HP -${dmg}`
+        `💔 HP -${dmg}`,
     )
 
   // Chance of backfire
@@ -103,9 +109,7 @@ export async function execute(interaction: ChatInputCommandInteraction) {
     })
   }
 
-  embed
-    .setFooter({ text: `${attacker.username}의 투척` })
-    .setTimestamp()
+  embed.setFooter({ text: `${attacker.username}의 투척` }).setTimestamp()
 
   await interaction.reply({ embeds: [embed] })
 }

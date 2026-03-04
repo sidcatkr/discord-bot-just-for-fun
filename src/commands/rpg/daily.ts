@@ -39,9 +39,9 @@ export async function execute(interaction: ChatInputCommandInteraction) {
     }
   }
 
-  const goldAmount = random(50, 200)
+  const goldAmount = random(100, 500)
   const healAmount = random(20, 50)
-  const bonusGold = chance(15) ? random(100, 500) : 0
+  const bonusGold = chance(15) ? random(300, 1000) : 0
   const gachaTicket = chance(30)
 
   addGold(user.id, guildId, goldAmount + bonusGold)
@@ -78,13 +78,20 @@ export async function execute(interaction: ChatInputCommandInteraction) {
   // Random fortune message
   const fortunes = [
     '🔮 오늘의 운세: 대박날 것 같은 예감!',
-    '🌟 오늘의 운세: 가챠 전설 뜰 확률 UP!',
+    '🌟 오늘의 운세: 가챠 전설 뜰 확률 UP! (거짓말)',
     '💀 오늘의 운세: 전투에서 지는 날...',
     '✨ 오늘의 운세: 좋은 일이 생길 것 같다!',
     '🐍 오늘의 운세: 배신을 조심하세요...',
     '💕 오늘의 운세: 사랑이 찾아올 수도?',
     '🧠 오늘의 운세: 지능이 3% 상승합니다 (일시적)',
     '🍀 오늘의 운세: 행운의 날!',
+    '📱 오늘의 운세: 핸드폰을 내려놓으세요.',
+    '🎰 오늘의 운세: 가챠 금지. 진심으로.',
+    '🐟 오늘의 운세: 낚시하면 쓰레기만 나옵니다.',
+    '☕ 오늘의 운세: 커피를 마시면 모든 게 해결됩니다 (거짓말)',
+    '🤖 오늘의 운세: 이 봇을 만든 사람도 오늘 운이 없습니다.',
+    '💀 오늘의 운세: 오늘 HP가 0이 될 확률 87%',
+    '🏥 오늘의 운세: 병원 자주 가실 예정입니다.',
   ]
 
   embed.addFields({

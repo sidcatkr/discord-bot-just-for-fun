@@ -17,7 +17,7 @@ export const data = new SlashCommandBuilder()
   .setName('eat')
   .setDescription('🍔 누군가를 맛있게 먹는다!')
   .addUserOption((opt) =>
-    opt.setName('target').setDescription('먹을 대상').setRequired(true)
+    opt.setName('target').setDescription('먹을 대상').setRequired(true),
   )
 
 const eatResults = [
@@ -42,14 +42,12 @@ const eatResults = [
     backfire: false,
   },
   {
-    msg: (t: string) =>
-      `🍣 ${t} 초밥! 근데 상한 것 같다... 🤮`,
+    msg: (t: string) => `🍣 ${t} 초밥! 근데 상한 것 같다... 🤮`,
     dmg: 5,
     backfire: true,
   },
   {
-    msg: (t: string) =>
-      `🥩 ${t}을(를) 스테이크로 구워 먹었는데... 날고기였다!`,
+    msg: (t: string) => `🥩 ${t}을(를) 스테이크로 구워 먹었는데... 날고기였다!`,
     dmg: 7,
     backfire: true,
   },
@@ -60,8 +58,14 @@ export async function execute(interaction: ChatInputCommandInteraction) {
   const attacker = interaction.user
 
   if (target.id === attacker.id) {
+    const selfEatReplies = [
+      '🤨 자기 자신을 먹을 수는 없습니다... 식인은 불법!',
+      '🍽️ 오토파지(자가포식)는 세포 단위에서만 가능합니다.',
+      '🤡 배가 그렇게 고프시면 /daily 하세요.',
+      '💀 자기 팔을 먹으면 체중이 줄까요 늘까요? 정답: 줄지도 늘지도 않습니다.',
+    ]
     await interaction.reply({
-      content: '🤨 자기 자신을 먹을 수는 없습니다... 식인은 불법!',
+      content: pick(selfEatReplies),
       ephemeral: true,
     })
     return
@@ -81,7 +85,9 @@ export async function execute(interaction: ChatInputCommandInteraction) {
 
   const embed = new EmbedBuilder()
     .setColor(0xff8c00)
-    .setDescription(`${result.msg(target.toString())}\n💔 ${target.toString()} HP -${result.dmg}`)
+    .setDescription(
+      `${result.msg(target.toString())}\n💔 ${target.toString()} HP -${result.dmg}`,
+    )
 
   if (result.backfire || chance(25)) {
     const selfDmg = random(3, 8)
@@ -102,9 +108,7 @@ export async function execute(interaction: ChatInputCommandInteraction) {
     })
   }
 
-  embed
-    .setFooter({ text: `${attacker.username}의 식사` })
-    .setTimestamp()
+  embed.setFooter({ text: `${attacker.username}의 식사` }).setTimestamp()
 
   await interaction.reply({ embeds: [embed] })
 }

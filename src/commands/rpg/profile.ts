@@ -3,7 +3,7 @@ import {
   EmbedBuilder,
   SlashCommandBuilder,
 } from 'discord.js'
-import { getOrCreatePlayer, getTitles } from '../../db/helpers.js'
+import { getOrCreatePlayer, getTitles, pick } from '../../db/helpers.js'
 
 export const data = new SlashCommandBuilder()
   .setName('profile')
@@ -49,6 +49,38 @@ export async function execute(interaction: ChatInputCommandInteraction) {
     embed.addFields({
       name: '🏷️ 칭호',
       value: titles.join(', '),
+    })
+  }
+
+  // Random flavor text based on state
+  const flavorTexts: string[] = []
+  if (player.hp <= 0) {
+    flavorTexts.push(
+      '💀 현재 사망 상태입니다. F.',
+      '💀 이 프로필은 영정 프로필입니다.',
+      '💀 주인은 현재 부재중입니다. (저승)',
+    )
+  } else if (player.hp < player.max_hp * 0.2) {
+    flavorTexts.push(
+      '🏥 병원 가세요. 진지하게.',
+      '🩸 반창고 붙이는 것으로는 부족합니다.',
+      '⚠️ HP가 빨간불입니다. 위험합니다.',
+    )
+  } else if (player.gold > 100000) {
+    flavorTexts.push(
+      '💰 부자입니다. 세금 내세요.',
+      '🤑 이 정도면 나라 하나 세울 수 있습니다.',
+    )
+  } else if (player.gold <= 0) {
+    flavorTexts.push(
+      '💸 무일푸입니다. 문자 그대로.',
+      '🪣 통장 잔고: 0G. 꿈도 희망도 없습니다. (/daily)',
+    )
+  }
+  if (flavorTexts.length > 0) {
+    embed.addFields({
+      name: '💬',
+      value: `*${pick(flavorTexts)}*`,
     })
   }
 

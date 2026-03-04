@@ -22,6 +22,11 @@ const suspiciousReasons = [
   '사실은 FBI 요원일 수 있습니다',
   '컴퓨터 앞에서 수상하게 웃고 있을 확률 89%',
   '지금 이 봇을 감시하고 있을 수도 있습니다',
+  '시크릿 탭이 항상 열려 있을 확률 94%',
+  '새벽 3시에 유튜브 알고리즘에 빠져 있을 확률이 높습니다',
+  '방금 뭔가를 검색하고 기록을 삭제했을 수 있습니다',
+  'Discord 봇한테 말 거는 걸 보면 외로운 것 같습니다',
+  '아직도 Internet Explorer를 즐겨찾기에 넣어두고 있습니다',
 ]
 
 export async function execute(interaction: ChatInputCommandInteraction) {
