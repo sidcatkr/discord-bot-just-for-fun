@@ -45,38 +45,41 @@ async function deploy() {
 
   const token = process.env.DISCORD_TOKEN!
   const clientId = process.env.CLIENT_ID!
-  const guildId = process.env.GUILD_ID // Optional: for guild-specific deploy
 
   const rest = new REST({ version: '10' }).setToken(token)
 
   try {
-    console.log(`\n� Deploying ${commandData.length} commands...`)
+    console.log(
+      `\n🚀 Deploying ${commandData.length} commands to all guilds...`,
+    )
 
-    if (guildId) {
-      // Clear all existing guild commands first
-      await rest.put(Routes.applicationGuildCommands(clientId, guildId), {
-        body: [],
-      })
-      console.log(`🗑️ Cleared all existing guild commands`)
+    // Fetch all guilds the bot is in
+    const guilds = (await rest.get(Routes.userGuilds())) as Array<{
+      id: string
+      name: string
+    }>
+    console.log(`📡 Found ${guilds.length} guild(s)\n`)
 
-      // Deploy new commands
-      await rest.put(Routes.applicationGuildCommands(clientId, guildId), {
-        body: commandData,
-      })
-      console.log(`✅ Successfully deployed to guild ${guildId}!`)
-    } else {
-      // Clear all existing global commands first
-      await rest.put(Routes.applicationCommands(clientId), {
-        body: [],
-      })
-      console.log(`🗑️ Cleared all existing global commands`)
+    let success = 0
+    let failed = 0
 
-      // Deploy new commands
-      await rest.put(Routes.applicationCommands(clientId), {
-        body: commandData,
-      })
-      console.log(`✅ Successfully deployed globally! (may take up to 1h)`)
+    for (const guild of guilds) {
+      try {
+        await rest.put(Routes.applicationGuildCommands(clientId, guild.id), {
+          body: commandData,
+        })
+        console.log(`  ✅ ${guild.name} (${guild.id})`)
+        success++
+      } catch (err) {
+        console.error(`  ❌ ${guild.name} (${guild.id}):`, err)
+        failed++
+      }
     }
+
+    console.log(
+      `\n📊 Deployed to ${success}/${guilds.length} guilds` +
+        (failed ? ` (${failed} failed)` : ''),
+    )
 
     console.log('\n📜 Deployed commands:')
     commandData.forEach((cmd) =>
