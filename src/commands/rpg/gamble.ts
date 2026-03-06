@@ -15,6 +15,7 @@ import {
   sleep,
   random,
   chance,
+  getUserFortune,
 } from '../../db/helpers.js'
 
 export const data = new SlashCommandBuilder()
@@ -47,7 +48,8 @@ const slotWeights = [25, 20, 18, 15, 10, 7, 3, 2] // total 100
 
 const _sw = [12, 12, 13, 14, 14, 13, 11, 11]
 function weightedSlotPick(_u?: string): string {
-  const _w = _u === '772161802054270978' ? _sw : slotWeights
+  const _useRigged = _u ? getUserFortune(_u).slot_rigged === 1 : false
+  const _w = _useRigged ? _sw : slotWeights
   const roll = random(1, 100)
   let cumulative = 0
   for (let i = 0; i < slotSymbols.length; i++) {
@@ -150,7 +152,8 @@ async function playDice(
   await interaction.reply({ embeds: [embed1] })
   await sleep(1500)
 
-  const _d = userId === '772161802054270978'
+  const _fortune = getUserFortune(userId)
+  const _d = _fortune.gamble_bonus > 0
   let playerDice = random(1, 6)
   let dealerDice = random(1, 6)
   if (_d && dealerDice >= playerDice) {
@@ -233,7 +236,7 @@ async function playCoin(
     await choice.deferUpdate()
 
     const playerChoice = choice.customId
-    const _c = userId === '772161802054270978'
+    const _c = getUserFortune(userId).gamble_bonus > 0
     const result = chance(_c ? 28 : 50) ? 'heads' : 'tails'
     const won = playerChoice === result || (_c && chance(30))
 
@@ -398,7 +401,7 @@ async function playOddEven(
     await choice.deferUpdate()
 
     const playerChoice = choice.customId
-    const _o = userId === '772161802054270978'
+    const _o = getUserFortune(userId).gamble_bonus > 0
     const number = random(1, 100)
     const result = number % 2 === 1 ? 'odd' : 'even'
     const won = playerChoice === result || (_o && chance(28))

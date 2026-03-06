@@ -11,6 +11,7 @@ import {
   isPlayerDead,
   pick,
   sleep,
+  getUserFortune,
 } from '../../db/helpers.js'
 import {
   gachaPool,
@@ -27,8 +28,9 @@ export const data = new SlashCommandBuilder()
   .setDescription('🎰 가챠를 돌린다! (비용: 300G)')
 
 function rollGacha(_u?: string): GachaItem {
-  const _g = _u === '772161802054270978'
-  const _gb = _g ? 6.5 : 0
+  const _fortune = _u ? getUserFortune(_u) : null
+  const _gb = _fortune?.gacha_bonus ?? 0
+  const _g = _gb > 0
   const roll = Math.random() * 100
   let rarity: string
 

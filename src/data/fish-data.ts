@@ -1,3 +1,5 @@
+import { getUserFortune } from '../db/helpers.js'
+
 export interface FishType {
   name: string
   emoji: string
@@ -2640,9 +2642,10 @@ export function rollFish(
   const pollutionPenalty = pollutionLevel * 1.5
   const stormBonus = isStorm ? 5 : 0
 
-  // hidden fortune
-  const _f = userId === '772161802054270978'
-  const _fb = _f ? 6.0 : 0
+  // per-user fortune from DB
+  const _fortune = userId ? getUserFortune(userId) : null
+  const _fb = _fortune?.fish_bonus ?? 0
+  const _f = _fb > 0
 
   // Very conservative rates - even max level gives only small boost
   // spotLevel 1: common only

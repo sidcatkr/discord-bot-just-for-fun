@@ -22,6 +22,7 @@ import {
   sleep,
   random,
   chance,
+  getUserFortune,
 } from '../../db/helpers.js'
 
 export const data = new SlashCommandBuilder()
@@ -458,8 +459,9 @@ const petPool: PetTemplate[] = [
 ]
 
 function rollPetGacha(_u?: string): PetTemplate {
-  const _p = _u === '772161802054270978'
-  const _pb = _p ? 5.5 : 0
+  const _fortune = _u ? getUserFortune(_u) : null
+  const _pb = _fortune?.pet_bonus ?? 0
+  const _p = _pb > 0
   const roll = Math.random() * 100
   let rarity: string
   if (roll < 0.5 + _pb) rarity = 'mythic'

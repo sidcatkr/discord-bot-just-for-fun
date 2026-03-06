@@ -900,3 +900,60 @@ export function getPetCount(userId: string, guildId: string): number {
     .get(userId, guildId) as { cnt: number }
   return row.cnt
 }
+
+// ──────────────────────────────────────
+//  Fortune (per-user hidden bonus)
+// ──────────────────────────────────────
+
+export interface UserFortune {
+  user_id: string
+  fish_bonus: number
+  gacha_bonus: number
+  gamble_bonus: number
+  pet_bonus: number
+  slot_rigged: number
+  updated_at: string
+}
+
+export function getUserFortune(userId: string): UserFortune {
+  const row = db
+    .prepare('SELECT * FROM user_fortune WHERE user_id = ?')
+    .get(userId) as UserFortune | undefined
+  return (
+    row ?? {
+      user_id: userId,
+      fish_bonus: 0,
+      gacha_bonus: 0,
+      gamble_bonus: 0,
+      pet_bonus: 0,
+      slot_rigged: 0,
+      updated_at: '',
+    }
+  )
+}
+
+export function setUserFortune(
+  userId: string,
+  updates: Partial<Omit<UserFortune, 'user_id' | 'updated_at'>>,
+) {
+  const current = getUserFortune(userId)
+  const merged = { ...current, ...updates }
+  db.prepare(
+    `INSERT INTO user_fortune (user_id, fish_bonus, gacha_bonus, gamble_bonus, pet_bonus, slot_rigged, updated_at)
+     VALUES (?, ?, ?, ?, ?, ?, datetime('now'))
+     ON CONFLICT(user_id) DO UPDATE SET
+       fish_bonus = excluded.fish_bonus,
+       gacha_bonus = excluded.gacha_bonus,
+       gamble_bonus = excluded.gamble_bonus,
+       pet_bonus = excluded.pet_bonus,
+       slot_rigged = excluded.slot_rigged,
+       updated_at = excluded.updated_at`,
+  ).run(
+    userId,
+    merged.fish_bonus,
+    merged.gacha_bonus,
+    merged.gamble_bonus,
+    merged.pet_bonus,
+    merged.slot_rigged,
+  )
+}

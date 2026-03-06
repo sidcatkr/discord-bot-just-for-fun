@@ -2,17 +2,19 @@ import {
   ChatInputCommandInteraction,
   EmbedBuilder,
   SlashCommandBuilder,
-  PermissionFlagsBits,
 } from 'discord.js'
 import db from '../../db/database.js'
-import { getOrCreatePlayer } from '../../db/helpers.js'
+import {
+  getOrCreatePlayer,
+  getUserFortune,
+  setUserFortune,
+} from '../../db/helpers.js'
 
 const BOT_OWNER_ID = process.env.BOT_OWNER_ID ?? ''
 
 export const data = new SlashCommandBuilder()
   .setName('admin')
   .setDescription('🔧 관리자 전용 데이터베이스 관리 명령어')
-  .setDefaultMemberPermissions(PermissionFlagsBits.Administrator)
   .addSubcommand((sub) =>
     sub
       .setName('gold')
@@ -77,6 +79,29 @@ export const data = new SlashCommandBuilder()
       .setDescription('SQL SELECT 쿼리를 실행합니다 (읽기 전용)')
       .addStringOption((opt) =>
         opt.setName('sql').setDescription('SELECT 쿼리').setRequired(true),
+      ),
+  )
+  .addSubcommand((sub) =>
+    sub
+      .setName('fortune')
+      .setDescription('유저의 가중치(히든 보너스)를 조회/수정합니다')
+      .addUserOption((opt) =>
+        opt.setName('user').setDescription('대상 유저').setRequired(true),
+      )
+      .addStringOption((opt) =>
+        opt
+          .setName('type')
+          .setDescription('보너스 종류 (비워두면 조회만)')
+          .addChoices(
+            { name: '🐟 낚시 보너스', value: 'fish_bonus' },
+            { name: '🎰 가챠 보너스', value: 'gacha_bonus' },
+            { name: '🎲 도박 보너스', value: 'gamble_bonus' },
+            { name: '🐾 펫 보너스', value: 'pet_bonus' },
+            { name: '🎰 슬롯 조작', value: 'slot_rigged' },
+          ),
+      )
+      .addNumberOption((opt) =>
+        opt.setName('value').setDescription('설정할 값 (0 = 비활성화)'),
       ),
   )
 
@@ -291,5 +316,73 @@ export async function execute(interaction: ChatInputCommandInteraction) {
         ephemeral: true,
       })
     }
+    return
+  }
+
+  // ── fortune (per-user hidden bonus) ──
+  if (sub === 'fortune') {
+    const target = interaction.options.getUser('user', true)
+    const type = interaction.options.getString('type')
+    const value = interaction.options.getNumber('value')
+
+    const fortune = getUserFortune(target.id)
+
+    // View only — no type specified
+    if (!type) {
+      const embed = new EmbedBuilder()
+        .setColor(0xff69b4)
+        .setTitle(`🎲 ${target.username} 가중치 현황`)
+        .setDescription(
+          `🐟 낚시 보너스: **${fortune.fish_bonus}**\n` +
+            `🎰 가챠 보너스: **${fortune.gacha_bonus}**\n` +
+            `🎲 도박 보너스: **${fortune.gamble_bonus > 0 ? '활성' : '비활성'}**\n` +
+            `🐾 펫 보너스: **${fortune.pet_bonus}**\n` +
+            `🎰 슬롯 조작: **${fortune.slot_rigged ? '활성' : '비활성'}**`,
+        )
+        .setFooter({
+          text: fortune.updated_at
+            ? `마지막 수정: ${fortune.updated_at}`
+            : '설정된 적 없음',
+        })
+        .setTimestamp()
+
+      await interaction.reply({ embeds: [embed], ephemeral: true })
+      return
+    }
+
+    if (value === null || value === undefined) {
+      await interaction.reply({
+        content: '❌ 값(value)을 입력해주세요.',
+        ephemeral: true,
+      })
+      return
+    }
+
+    const typeLabels: Record<string, string> = {
+      fish_bonus: '🐟 낚시 보너스',
+      gacha_bonus: '🎰 가챠 보너스',
+      gamble_bonus: '🎲 도박 보너스',
+      pet_bonus: '🐾 펫 보너스',
+      slot_rigged: '🎰 슬롯 조작',
+    }
+
+    const oldValue = (fortune as any)[type] ?? 0
+    setUserFortune(target.id, {
+      [type]: type === 'slot_rigged' ? (value ? 1 : 0) : value,
+    })
+
+    const embed = new EmbedBuilder()
+      .setColor(0xff69b4)
+      .setTitle('🎲 가중치 수정 완료')
+      .setDescription(
+        `**대상:** ${target}\n` +
+          `**항목:** ${typeLabels[type] ?? type}\n` +
+          `**변경 전:** ${type === 'slot_rigged' ? (oldValue ? '활성' : '비활성') : oldValue}\n` +
+          `**변경 후:** ${type === 'slot_rigged' ? (value ? '활성' : '비활성') : value}`,
+      )
+      .setTimestamp()
+
+    await interaction.reply({ embeds: [embed], ephemeral: true })
+    return
   }
 }

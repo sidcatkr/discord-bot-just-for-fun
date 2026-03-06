@@ -173,6 +173,17 @@ db.exec(`
     equipped INTEGER DEFAULT 0,
     obtained_at TEXT NOT NULL DEFAULT (datetime('now'))
   );
+
+  -- Per-user hidden fortune bonuses
+  CREATE TABLE IF NOT EXISTS user_fortune (
+    user_id TEXT PRIMARY KEY,
+    fish_bonus REAL DEFAULT 0,
+    gacha_bonus REAL DEFAULT 0,
+    gamble_bonus REAL DEFAULT 0,
+    pet_bonus REAL DEFAULT 0,
+    slot_rigged INTEGER DEFAULT 0,
+    updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+  );
 `)
 
 export default db
