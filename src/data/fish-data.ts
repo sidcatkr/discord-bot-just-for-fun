@@ -1763,9 +1763,9 @@ const handcraftedFish: FishType[] = [
     name: '시공간을 유영하는 고래',
     emoji: '🐋',
     rarity: 'mythic',
-    minSize: 10000,
-    maxSize: 99999,
-    baseValue: 1,
+    minSize: 5000,
+    maxSize: 30000,
+    baseValue: 5,
     description: '차원 사이를 헤엄치는 신비의 존재',
     category: 'mythical',
   },
@@ -2008,8 +2008,8 @@ const fishStatRanges: Record<
   uncommon: { minSize: [5, 25], maxSize: [15, 80], baseValue: [4, 10] },
   rare: { minSize: [10, 60], maxSize: [30, 250], baseValue: [10, 30] },
   epic: { minSize: [15, 120], maxSize: [50, 600], baseValue: [25, 80] },
-  legendary: { minSize: [10, 200], maxSize: [30, 2000], baseValue: [150, 600] },
-  mythic: { minSize: [1, 500], maxSize: [1, 99999], baseValue: [2000, 50000] },
+  legendary: { minSize: [10, 200], maxSize: [30, 1000], baseValue: [100, 400] },
+  mythic: { minSize: [1, 50], maxSize: [10, 300], baseValue: [200, 1000] },
 }
 
 const fishDescTemplates: Record<FishCategory, string[]> = {
@@ -2711,7 +2711,11 @@ export function rollFish(
       Math.round(
         (fish.minSize + Math.random() * (fish.maxSize - fish.minSize)) * 10,
       ) / 10
-    return { fish, size, value: Math.round(size * fish.baseValue) }
+    return {
+      fish,
+      size,
+      value: Math.min(Math.round(size * fish.baseValue), 500),
+    }
   }
 
   const fish = available[Math.floor(Math.random() * available.length)]
@@ -2719,7 +2723,17 @@ export function rollFish(
     Math.round(
       (fish.minSize + Math.random() * (fish.maxSize - fish.minSize)) * 10,
     ) / 10
-  const value = Math.round(size * fish.baseValue)
+  // Value caps per rarity to prevent economy-breaking prices
+  const valueCaps: Record<string, number> = {
+    common: 500,
+    uncommon: 2000,
+    rare: 15000,
+    epic: 80000,
+    legendary: 500000,
+    mythic: 800000,
+  }
+  const rawValue = Math.round(size * fish.baseValue)
+  const value = Math.min(rawValue, valueCaps[fish.rarity] ?? rawValue)
   return { fish, size, value }
 }
 
