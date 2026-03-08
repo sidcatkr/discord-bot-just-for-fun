@@ -14,6 +14,7 @@ import {
   sleep,
   random,
   chance,
+  getUserFortune,
 } from '../../db/helpers.js'
 
 export const data = new SlashCommandBuilder()
@@ -91,13 +92,15 @@ const minerals: MineralType[] = [
   },
 ]
 
-function rollMineral(): MineralType {
+function rollMineral(userId?: string): MineralType {
+  const fortune = userId ? getUserFortune(userId) : null
+  const mb = fortune?.mine_bonus ?? 0
   const roll = Math.random() * 100
   let rarity: string
-  if (roll < 0.5) rarity = 'mythic'
-  else if (roll < 2) rarity = 'legendary'
-  else if (roll < 7) rarity = 'epic'
-  else if (roll < 18) rarity = 'rare'
+  if (roll < 0.5 + mb) rarity = 'mythic'
+  else if (roll < 2 + mb * 1.5) rarity = 'legendary'
+  else if (roll < 7 + mb * 1.2) rarity = 'epic'
+  else if (roll < 18 + mb) rarity = 'rare'
   else if (roll < 38) rarity = 'uncommon'
   else rarity = 'common'
   const pool = minerals.filter((m) => m.rarity === rarity)
@@ -211,7 +214,7 @@ export async function execute(interaction: ChatInputCommandInteraction) {
   const results: { mineral: MineralType; value: number }[] = []
 
   for (let i = 0; i < mineralCount; i++) {
-    const mineral = rollMineral()
+    const mineral = rollMineral(user.id)
     const value = random(mineral.minValue, mineral.maxValue)
     results.push({ mineral, value })
   }

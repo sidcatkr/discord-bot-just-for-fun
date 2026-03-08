@@ -911,6 +911,7 @@ export interface UserFortune {
   gacha_bonus: number
   gamble_bonus: number
   pet_bonus: number
+  mine_bonus: number
   slot_rigged: number
   updated_at: string
 }
@@ -926,6 +927,7 @@ export function getUserFortune(userId: string): UserFortune {
       gacha_bonus: 0,
       gamble_bonus: 0,
       pet_bonus: 0,
+      mine_bonus: 0,
       slot_rigged: 0,
       updated_at: '',
     }
@@ -939,13 +941,14 @@ export function setUserFortune(
   const current = getUserFortune(userId)
   const merged = { ...current, ...updates }
   db.prepare(
-    `INSERT INTO user_fortune (user_id, fish_bonus, gacha_bonus, gamble_bonus, pet_bonus, slot_rigged, updated_at)
-     VALUES (?, ?, ?, ?, ?, ?, datetime('now'))
+    `INSERT INTO user_fortune (user_id, fish_bonus, gacha_bonus, gamble_bonus, pet_bonus, mine_bonus, slot_rigged, updated_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, datetime('now'))
      ON CONFLICT(user_id) DO UPDATE SET
        fish_bonus = excluded.fish_bonus,
        gacha_bonus = excluded.gacha_bonus,
        gamble_bonus = excluded.gamble_bonus,
        pet_bonus = excluded.pet_bonus,
+       mine_bonus = excluded.mine_bonus,
        slot_rigged = excluded.slot_rigged,
        updated_at = excluded.updated_at`,
   ).run(
@@ -954,6 +957,7 @@ export function setUserFortune(
     merged.gacha_bonus,
     merged.gamble_bonus,
     merged.pet_bonus,
+    merged.mine_bonus,
     merged.slot_rigged,
   )
 }

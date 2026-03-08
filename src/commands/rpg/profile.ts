@@ -3,7 +3,12 @@ import {
   EmbedBuilder,
   SlashCommandBuilder,
 } from 'discord.js'
-import { getOrCreatePlayer, getTitles, pick } from '../../db/helpers.js'
+import {
+  getOrCreatePlayer,
+  getTitles,
+  getEffectiveStats,
+  pick,
+} from '../../db/helpers.js'
 
 export const data = new SlashCommandBuilder()
   .setName('profile')
@@ -18,9 +23,16 @@ export async function execute(interaction: ChatInputCommandInteraction) {
 
   const player = getOrCreatePlayer(target.id, guildId, target.username)
   const titles = getTitles(target.id, guildId)
+  const effective = getEffectiveStats(target.id, guildId)
 
-  const hpBar = makeBar(player.hp, player.max_hp, '❤️', '🖤')
+  const hpBar = makeBar(player.hp, effective.max_hp, '❤️', '🖤')
   const xpBar = makeBar(player.xp, player.level * 100, '⭐', '☆')
+
+  const critDisplay = `**${(effective.crit_rate * 100).toFixed(0)}%**`
+  const critDmgDisplay =
+    effective.crit_damage > 2
+      ? ` (💥 ${(effective.crit_damage * 100).toFixed(0)}%)`
+      : ''
 
   const embed = new EmbedBuilder()
     .setColor(0x3498db)
@@ -31,7 +43,7 @@ export async function execute(interaction: ChatInputCommandInteraction) {
         name: '📊 기본 정보',
         value:
           `⭐ 레벨: **${player.level}**\n` +
-          `❤️ HP: ${hpBar} **${player.hp}/${player.max_hp}**\n` +
+          `❤️ HP: ${hpBar} **${player.hp}/${effective.max_hp}**\n` +
           `✨ XP: ${xpBar} **${player.xp}/${player.level * 100}**\n` +
           `💰 골드: **${player.gold}G**`,
         inline: false,
@@ -39,8 +51,8 @@ export async function execute(interaction: ChatInputCommandInteraction) {
       {
         name: '⚔️ 전투 스탯',
         value:
-          `공격력: **${player.attack}** | 방어력: **${player.defense}**\n` +
-          `크리티컬: **${(player.crit_rate * 100).toFixed(0)}%** | 회피: **${(player.evasion * 100).toFixed(0)}%**`,
+          `공격력: **${effective.attack}** | 방어력: **${effective.defense}**\n` +
+          `크리티컬: ${critDisplay}${critDmgDisplay} | 회피: **${(player.evasion * 100).toFixed(0)}%**`,
         inline: false,
       },
     )

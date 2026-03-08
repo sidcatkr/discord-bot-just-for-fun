@@ -26,6 +26,15 @@ const rollingUsers = new Set<string>()
 export const data = new SlashCommandBuilder()
   .setName('gacha')
   .setDescription('🎰 가챠를 돌린다! (비용: 300G)')
+  .addIntegerOption((opt) =>
+    opt
+      .setName('count')
+      .setDescription('뽑기 횟수 (1 또는 10)')
+      .addChoices(
+        { name: '1연차 (300G)', value: 1 },
+        { name: '10연차 (2700G, 10% 할인!)', value: 10 },
+      ),
+  )
 
 function rollGacha(_u?: string): GachaItem {
   const _fortune = _u ? getUserFortune(_u) : null
@@ -48,6 +57,8 @@ function rollGacha(_u?: string): GachaItem {
 export async function execute(interaction: ChatInputCommandInteraction) {
   const user = interaction.user
   const guildId = interaction.guildId!
+  const count = interaction.options.getInteger('count') ?? 1
+  const cost = count === 10 ? 2700 : 300
 
   const player = getOrCreatePlayer(user.id, guildId, user.username)
 
@@ -79,16 +90,143 @@ export async function execute(interaction: ChatInputCommandInteraction) {
     return
   }
 
-  if (player.gold < 300) {
+  if (player.gold < cost) {
     await interaction.reply({
-      content: `💰 골드가 부족합니다! (현재: ${player.gold}G / 필요: 300G)\n\`/daily\`로 골드를 모으세요!`,
+      content: `💰 골드가 부족합니다! (현재: ${player.gold}G / 필요: ${cost}G)\n\`/daily\`로 골드를 모으세요!`,
       ephemeral: true,
     })
     return
   }
 
   rollingUsers.add(userKey)
-  addGold(user.id, guildId, -300)
+  addGold(user.id, guildId, -cost)
+
+  if (count === 10) {
+    // ══════════ 10-pull gacha ══════════
+    const embed1 = new EmbedBuilder()
+      .setColor(0xffd700)
+      .setTitle('🎰 10연차 돌리는 중...')
+      .setDescription(
+        `> 🎰🎰🎰🎰🎰🎰🎰🎰🎰🎰\n\n**슬롯 10개가 동시에 돌아갑니다...!**`,
+      )
+    await interaction.reply({ embeds: [embed1] })
+    await sleep(2000)
+
+    // Roll all 10
+    const items: GachaItem[] = []
+    for (let i = 0; i < 10; i++) {
+      items.push(rollGacha(user.id))
+    }
+
+    // Add items to inventory
+    for (const item of items) {
+      addItem(user.id, {
+        item_name: item.name,
+        item_rarity: item.rarity,
+        item_emoji: item.emoji,
+        attack_bonus: item.attack,
+        defense_bonus: item.defense,
+        hp_bonus: item.hp,
+        crit_bonus: item.crit,
+      })
+    }
+
+    // Count by rarity
+    const rarityCounts: Record<string, number> = {}
+    for (const item of items) {
+      rarityCounts[item.rarity] = (rarityCounts[item.rarity] ?? 0) + 1
+    }
+
+    // Build result lines
+    const resultLines = items
+      .map((item, i) => {
+        const stats: string[] = []
+        if (item.attack > 0) stats.push(`⚔️+${item.attack}`)
+        if (item.defense > 0) stats.push(`🛡️+${item.defense}`)
+        if (item.hp > 0) stats.push(`❤️+${item.hp}`)
+        if (item.crit > 0) stats.push(`🎯+${(item.crit * 100).toFixed(0)}%`)
+        const statStr = stats.length > 0 ? ` (${stats.join(' ')})` : ''
+        return `${i + 1}. ${item.emoji} **${item.name}** ${rarityLabels[item.rarity]}${statStr}`
+      })
+      .join('\n')
+
+    // Check for titles
+    if (items.some((i) => i.rarity === 'mythic')) {
+      addTitle(user.id, guildId, '🦆 신화 수집가')
+    }
+
+    // Best rarity for embed color
+    const rarityOrder = [
+      'common',
+      'uncommon',
+      'rare',
+      'epic',
+      'legendary',
+      'mythic',
+    ]
+    const bestRarity = items.reduce((best, item) =>
+      rarityOrder.indexOf(item.rarity) > rarityOrder.indexOf(best.rarity)
+        ? item
+        : best,
+    )
+
+    // Glow animation
+    const embed2 = new EmbedBuilder()
+      .setColor(rarityColors[bestRarity.rarity])
+      .setTitle('🎰 10연차!')
+      .setDescription(
+        `> ✨✨✨ 빛이 쏟아진다...!\n\n*10개의 아이템이 나타나는 중...*`,
+      )
+    await interaction.editReply({ embeds: [embed2] })
+    await sleep(2000)
+
+    // Final result
+    const finalEmbed = new EmbedBuilder()
+      .setColor(rarityColors[bestRarity.rarity])
+      .setTitle('🎰 10연차 결과!')
+      .setDescription(resultLines)
+
+    // Summary line
+    const summaryParts: string[] = []
+    for (const r of rarityOrder.reverse()) {
+      if (rarityCounts[r]) {
+        summaryParts.push(`${rarityLabels[r]} ×${rarityCounts[r]}`)
+      }
+    }
+    finalEmbed.addFields({
+      name: '📊 등급 요약',
+      value: summaryParts.join(' | ') || '없음',
+    })
+
+    if (items.some((i) => i.rarity === 'mythic')) {
+      finalEmbed.addFields({
+        name: '🎊 대박!!!',
+        value: '🌟 **신화급 아이템이 10연차에서 나왔습니다!!!**',
+      })
+    } else if (items.some((i) => i.rarity === 'legendary')) {
+      finalEmbed.addFields({
+        name: '🎊 대박!',
+        value: '✨ **전설급 아이템 발견!** 축하합니다!',
+      })
+    } else if (items.every((i) => i.rarity === 'common')) {
+      finalEmbed.addFields({
+        name: '😭',
+        value: '2700G로 꽝 10개를 뽑았습니다. 축하합니다... 아니, 위로합니다.',
+      })
+    }
+
+    finalEmbed
+      .setFooter({
+        text: `잔여 골드: ${player.gold - cost}G | 비용: ${cost}G (10% 할인)`,
+      })
+      .setTimestamp()
+
+    await interaction.editReply({ embeds: [finalEmbed] })
+    rollingUsers.delete(userKey)
+    return
+  }
+
+  // ══════════ Single pull (original) ══════════
   const item = rollGacha(user.id)
 
   // ── Phase 1: 돌리는 중 ──
@@ -206,7 +344,7 @@ export async function execute(interaction: ChatInputCommandInteraction) {
   }
 
   finalEmbed.setFooter({
-    text: `잔여 골드: ${player.gold - 300}G | 전체 아이템 풀: ${gachaPool.length}종`,
+    text: `잔여 골드: ${player.gold - cost}G | 전체 아이템 풀: ${gachaPool.length}종`,
   })
   finalEmbed.setTimestamp()
 

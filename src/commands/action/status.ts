@@ -47,8 +47,12 @@ export async function execute(interaction: ChatInputCommandInteraction) {
       : `${player.defense}`
   const critText =
     effective.crit_rate !== player.crit_rate
-      ? `${(player.crit_rate * 100).toFixed(0)}% (+${((effective.crit_rate - player.crit_rate) * 100).toFixed(0)}%)`
+      ? `${(player.crit_rate * 100).toFixed(0)}% (+${(effective.totalCritBonus * 100).toFixed(0)}%) → ${(effective.crit_rate * 100).toFixed(0)}%`
       : `${(player.crit_rate * 100).toFixed(0)}%`
+  const critDmgText =
+    effective.crit_damage > 2
+      ? `${(effective.crit_damage * 100).toFixed(0)}%`
+      : `200%`
   const hpMaxText =
     effective.max_hp !== player.max_hp
       ? `${player.hp}/${player.max_hp} (+${effective.max_hp - player.max_hp})`
@@ -87,6 +91,11 @@ export async function execute(interaction: ChatInputCommandInteraction) {
       {
         name: '🎯 크리티컬',
         value: critText,
+        inline: true,
+      },
+      {
+        name: '💥 크리티컬 데미지',
+        value: critDmgText,
         inline: true,
       },
       {

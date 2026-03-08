@@ -181,9 +181,17 @@ db.exec(`
     gacha_bonus REAL DEFAULT 0,
     gamble_bonus REAL DEFAULT 0,
     pet_bonus REAL DEFAULT 0,
+    mine_bonus REAL DEFAULT 0,
     slot_rigged INTEGER DEFAULT 0,
     updated_at TEXT NOT NULL DEFAULT (datetime('now'))
   );
 `)
+
+// Migrate: add mine_bonus column if it doesn't exist
+try {
+  db.prepare('SELECT mine_bonus FROM user_fortune LIMIT 1').get()
+} catch {
+  db.exec('ALTER TABLE user_fortune ADD COLUMN mine_bonus REAL DEFAULT 0')
+}
 
 export default db

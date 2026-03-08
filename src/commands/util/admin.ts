@@ -83,6 +83,19 @@ export const data = new SlashCommandBuilder()
   )
   .addSubcommand((sub) =>
     sub
+      .setName('exec')
+      .setDescription('SQL 쿼리를 직접 실행합니다 (INSERT/UPDATE/DELETE)')
+      .addStringOption((opt) =>
+        opt.setName('sql').setDescription('실행할 SQL 쿼리').setRequired(true),
+      ),
+  )
+  .addSubcommand((sub) =>
+    sub
+      .setName('sqlhelp')
+      .setDescription('데이터베이스 스키마 및 SQL 도움말을 표시합니다'),
+  )
+  .addSubcommand((sub) =>
+    sub
       .setName('fortune')
       .setDescription('유저의 가중치(히든 보너스)를 조회/수정합니다')
       .addUserOption((opt) =>
@@ -97,6 +110,7 @@ export const data = new SlashCommandBuilder()
             { name: '🎰 가챠 보너스', value: 'gacha_bonus' },
             { name: '🎲 도박 보너스', value: 'gamble_bonus' },
             { name: '🐾 펫 보너스', value: 'pet_bonus' },
+            { name: '⛏️ 채굴 보너스', value: 'mine_bonus' },
             { name: '🎰 슬롯 조작', value: 'slot_rigged' },
           ),
       )
@@ -319,6 +333,110 @@ export async function execute(interaction: ChatInputCommandInteraction) {
     return
   }
 
+  // ── exec (direct SQL write) ──
+  if (sub === 'exec') {
+    const sql = interaction.options.getString('sql', true).trim()
+
+    // Block truly destructive DDL
+    const blocked = /\b(DROP\s+TABLE|ALTER\s+TABLE|ATTACH|DETACH)\b/i
+    if (blocked.test(sql)) {
+      await interaction.reply({
+        content: '❌ DROP TABLE, ALTER TABLE, ATTACH, DETACH는 차단됩니다.',
+        ephemeral: true,
+      })
+      return
+    }
+
+    try {
+      const result = db.prepare(sql).run()
+      const embed = new EmbedBuilder()
+        .setColor(0xe74c3c)
+        .setTitle('⚡ SQL 실행 완료')
+        .setDescription(
+          `\`\`\`sql\n${sql.length > 500 ? sql.slice(0, 500) + '...' : sql}\n\`\`\``,
+        )
+        .addFields(
+          {
+            name: '변경된 행',
+            value: `${result.changes}`,
+            inline: true,
+          },
+          {
+            name: 'Last Insert ID',
+            value: `${result.lastInsertRowid}`,
+            inline: true,
+          },
+        )
+        .setTimestamp()
+
+      await interaction.reply({ embeds: [embed], ephemeral: true })
+    } catch (err: any) {
+      await interaction.reply({
+        content: `❌ SQL 오류: ${err.message}`,
+        ephemeral: true,
+      })
+    }
+    return
+  }
+
+  // ── sqlhelp ──
+  if (sub === 'sqlhelp') {
+    const schemaHelp = `## 📋 데이터베이스 스키마
+
+**players** — 플레이어 기본 정보
+\`user_id\` TEXT PK, \`guild_id\` TEXT, \`username\` TEXT, \`level\` INT, \`xp\` INT, \`hp\` INT, \`max_hp\` INT, \`attack\` INT, \`defense\` INT, \`crit_rate\` REAL, \`evasion\` REAL, \`gold\` INT, \`last_daily\` TEXT
+
+**inventory** — 아이템 인벤토리
+\`id\` INT PK, \`user_id\` TEXT, \`item_name\` TEXT, \`item_rarity\` TEXT, \`item_emoji\` TEXT, \`attack_bonus\` INT, \`defense_bonus\` INT, \`hp_bonus\` INT, \`crit_bonus\` REAL, \`equipped\` INT
+
+**fish_collection** — 낚시 도감
+\`id\` INT PK, \`user_id\` TEXT, \`guild_id\` TEXT, \`fish_name\` TEXT, \`fish_rarity\` TEXT, \`fish_emoji\` TEXT, \`fish_size\` REAL, \`fish_value\` INT, \`caught_at\` TEXT
+
+**pets** — 펫
+\`id\` INT PK, \`user_id\` TEXT, \`guild_id\` TEXT, \`pet_name\` TEXT, \`pet_emoji\` TEXT, \`pet_rarity\` TEXT, \`pet_type\` TEXT, \`attack_bonus\` INT, \`defense_bonus\` INT, \`hp_bonus\` INT, \`luck_bonus\` REAL, \`gold_bonus\` REAL, \`xp_bonus\` REAL, \`equipped\` INT
+
+**user_fortune** — 히든 보너스
+\`user_id\` TEXT PK, \`fish_bonus\` REAL, \`gacha_bonus\` REAL, \`gamble_bonus\` REAL, \`pet_bonus\` REAL, \`mine_bonus\` REAL, \`slot_rigged\` INT, \`updated_at\` TEXT
+
+**기타:** relationships, status_effects, battle_log, titles, islands, island_buildings, island_pollution, trash_inventory`
+
+    const queryHelp = `## 🔍 유용한 쿼리 예시
+
+**유저 조회:**
+\`SELECT * FROM players WHERE user_id = '...' \`
+\`SELECT * FROM players ORDER BY gold DESC LIMIT 10\`
+
+**아이템 조회:**
+\`SELECT * FROM inventory WHERE user_id = '...' ORDER BY item_rarity\`
+
+**물고기 통계:**
+\`SELECT fish_rarity, COUNT(*) as cnt, SUM(fish_value) as total FROM fish_collection GROUP BY fish_rarity\`
+
+**직접 수정 (exec 사용):**
+\`UPDATE players SET gold = 1000 WHERE user_id = '...'\`
+\`DELETE FROM inventory WHERE id = 123\`
+\`INSERT INTO titles (user_id, guild_id, title) VALUES ('...', '...', '칭호')\``
+
+    const embed = new EmbedBuilder()
+      .setColor(0x3498db)
+      .setTitle('📖 SQL 도움말')
+      .setDescription(schemaHelp)
+
+    const embed2 = new EmbedBuilder()
+      .setColor(0x3498db)
+      .setTitle('📖 쿼리 예시')
+      .setDescription(queryHelp)
+      .setFooter({
+        text: 'query = SELECT 전용 | exec = INSERT/UPDATE/DELETE',
+      })
+
+    await interaction.reply({
+      embeds: [embed, embed2],
+      ephemeral: true,
+    })
+    return
+  }
+
   // ── fortune (per-user hidden bonus) ──
   if (sub === 'fortune') {
     const target = interaction.options.getUser('user', true)
@@ -337,6 +455,7 @@ export async function execute(interaction: ChatInputCommandInteraction) {
             `🎰 가챠 보너스: **${fortune.gacha_bonus}**\n` +
             `🎲 도박 보너스: **${fortune.gamble_bonus > 0 ? '활성' : '비활성'}**\n` +
             `🐾 펫 보너스: **${fortune.pet_bonus}**\n` +
+            `⛏️ 채굴 보너스: **${fortune.mine_bonus}**\n` +
             `🎰 슬롯 조작: **${fortune.slot_rigged ? '활성' : '비활성'}**`,
         )
         .setFooter({
@@ -363,6 +482,7 @@ export async function execute(interaction: ChatInputCommandInteraction) {
       gacha_bonus: '🎰 가챠 보너스',
       gamble_bonus: '🎲 도박 보너스',
       pet_bonus: '🐾 펫 보너스',
+      mine_bonus: '⛏️ 채굴 보너스',
       slot_rigged: '🎰 슬롯 조작',
     }
 
