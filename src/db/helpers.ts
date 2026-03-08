@@ -961,3 +961,79 @@ export function setUserFortune(
     merged.slot_rigged,
   )
 }
+
+// ──────────────────────────────────────
+//  Fun kick on massive damage
+// ──────────────────────────────────────
+
+import type { Guild } from 'discord.js'
+
+const kickReasons = [
+  '너무 세게 맞아서 서버 밖으로 날아갔습니다!',
+  '크리티컬의 충격으로 서버 공간이 찢어졌습니다!',
+  '데미지가 너무 강해서 차원이 붕괴했습니다!',
+  '영혼이 서버를 떠났습니다... (강제)',
+  '이 서버에서의 모험이 강제 종료되었습니다!',
+  '게임 오버. 리스폰 지점: 서버 초대 링크',
+]
+
+const kickFieldMessages = [
+  (t: string) =>
+    `${t}은(는) 너무 세게 맞아서 **서버에서 추방**되었습니다!!! 🚪💨`,
+  (t: string) =>
+    `${t}의 영혼이 서버를 떠났습니다... **추방 완료!** 👻`,
+  (t: string) =>
+    `${t}이(가) 크리티컬의 충격으로 **서버 밖으로 날아갔습니다!** 🌟`,
+  (t: string) =>
+    `${t}: 게임 오버! **서버에서 퇴장!** 다시 들어오려면 초대 링크를... 💀`,
+]
+
+const nearMissMessages = [
+  (t: string) =>
+    `${t}은(는) 서버에서 추방될 뻔했다...! (아슬아슬하게 살아남음)`,
+  (t: string) =>
+    `${t}의 영혼이 서버를 떠나려다 돌아왔습니다... (위험했다!)`,
+  (t: string) =>
+    `${t}이(가) 추방의 문턱에서 간신히 살아남았다...!`,
+]
+
+/**
+ * Attempt a fun kick when massive damage is dealt.
+ * Returns 'kicked' | 'near-miss' | null
+ */
+export async function tryFunKick(
+  guild: Guild | null,
+  targetId: string,
+  kickChance: number, // percentage (0–100)
+): Promise<{ result: 'kicked' | 'near-miss' | null; message: string }> {
+  if (!chance(kickChance)) return { result: null, message: '' }
+
+  if (!guild) {
+    return {
+      result: 'near-miss',
+      message: pick(nearMissMessages)('대상'),
+    }
+  }
+
+  try {
+    const member = await guild.members.fetch(targetId)
+    if (!member.kickable) {
+      return {
+        result: 'near-miss',
+        message: pick(nearMissMessages)(member.toString()),
+      }
+    }
+
+    await member.kick(pick(kickReasons))
+    addTitle(targetId, guild.id, '🚪 서버 추방 경험자')
+    return {
+      result: 'kicked',
+      message: pick(kickFieldMessages)(member.toString()),
+    }
+  } catch {
+    return {
+      result: 'near-miss',
+      message: pick(nearMissMessages)(`<@${targetId}>`),
+    }
+  }
+}

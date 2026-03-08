@@ -11,6 +11,7 @@ import {
   chance,
   random,
   pick,
+  tryFunKick,
 } from '../../db/helpers.js'
 
 export const data = new SlashCommandBuilder()
@@ -107,6 +108,24 @@ export async function execute(interaction: ChatInputCommandInteraction) {
       name: '🔥 불탐!',
       value: `${target.toString()}은(는) ${dest.time}초간 불타고 있습니다!`,
     })
+  }
+
+  // Extreme destinations: chance to kick!
+  const extremePlaces = ['블랙홀', '지옥', '태양', '마인크래프트']
+  const isExtreme = extremePlaces.some((p) => dest.place.includes(p))
+  if (isExtreme) {
+    const kick = await tryFunKick(interaction.guild, target.id, 5)
+    if (kick.result === 'kicked') {
+      embed.addFields({
+        name: '🚪 추방!!!',
+        value: `${dest.place}에서 돌아오지 못했습니다... ${kick.message}`,
+      })
+    } else if (kick.result === 'near-miss') {
+      embed.addFields({
+        name: '⚠️ 위험!',
+        value: kick.message,
+      })
+    }
   }
 
   embed.setFooter({ text: `${attacker.username}의 투척` }).setTimestamp()

@@ -17,6 +17,7 @@ import {
   random,
   pick,
   sleep,
+  tryFunKick,
   type EffectiveStats,
 } from '../../db/helpers.js'
 
@@ -341,6 +342,16 @@ export async function execute(interaction: ChatInputCommandInteraction) {
     allLines.push(`✨ XP +${xpReward} | 💰 +${goldReward}G`)
     if (leveledUp) {
       allLines.push(`🎉 **레벨 업!!!**`)
+    }
+
+    // Kick chance on KO (4%)
+    if (loserId && (lastRound.attackerHp <= 0 || lastRound.defenderHp <= 0)) {
+      const kick = await tryFunKick(interaction.guild, loserId, 4)
+      if (kick.result === 'kicked') {
+        allLines.push(`\n🚪 **추방!!!** ${kick.message}`)
+      } else if (kick.result === 'near-miss') {
+        allLines.push(`\n⚠️ ${kick.message}`)
+      }
     }
   }
 

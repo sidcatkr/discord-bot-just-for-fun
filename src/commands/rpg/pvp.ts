@@ -24,6 +24,7 @@ import {
   sleep,
   random,
   chance,
+  tryFunKick,
   type EffectiveStats,
 } from '../../db/helpers.js'
 
@@ -501,6 +502,16 @@ async function runPvpBattle(
   if (bet > 0) allLines.push(`💰 배팅금 **${bet * 2}G** 획득!`)
   if (leveledUp) allLines.push(`🎉 **레벨 업!!!**`)
   allLines.push(`\n*"${pick(victoryQuotes)}"*`)
+
+  // Kick chance on KO (5% for PVP)
+  if (defHp <= 0 || atkHp <= 0) {
+    const kick = await tryFunKick(interaction.guild, loserId, 5)
+    if (kick.result === 'kicked') {
+      allLines.push(`\n🚪 **추방!!!** ${kick.message}`)
+    } else if (kick.result === 'near-miss') {
+      allLines.push(`\n⚠️ ${kick.message}`)
+    }
+  }
 
   const finalEmbed = new EmbedBuilder()
     .setColor(winnerId === attackerId ? 0x2ecc71 : 0xe74c3c)

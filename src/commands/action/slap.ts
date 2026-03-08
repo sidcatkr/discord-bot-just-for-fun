@@ -13,6 +13,7 @@ import {
   random,
   pick,
   addTitle,
+  tryFunKick,
 } from '../../db/helpers.js'
 
 export const data = new SlashCommandBuilder()
@@ -92,11 +93,17 @@ export async function execute(interaction: ChatInputCommandInteraction) {
     damagePlayer(target.id, guildId, critDmg - dmg) // extra damage beyond base
     applyStatusEffect(target.id, guildId, 'stunned', 5, attacker.id)
 
-    // Super rare: 2% chance "almost kicked"
-    if (chance(2)) {
+    // 3% chance to kick on crit
+    const kick = await tryFunKick(interaction.guild, target.id, 3)
+    if (kick.result === 'kicked') {
+      embed.addFields({
+        name: '🚪 추방!!!',
+        value: kick.message,
+      })
+    } else if (kick.result === 'near-miss') {
       embed.addFields({
         name: '⚠️ 위험!',
-        value: `${target.toString()}은(는) 서버에서 추방될 뻔했다...! (2% 확률 발동)`,
+        value: kick.message,
       })
       addTitle(target.id, guildId, '🎯 추방 위기 생존자')
     }
