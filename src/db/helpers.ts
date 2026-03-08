@@ -912,6 +912,7 @@ export interface UserFortune {
   gamble_bonus: number
   pet_bonus: number
   mine_bonus: number
+  kick_bonus: number
   slot_rigged: number
   updated_at: string
 }
@@ -928,6 +929,7 @@ export function getUserFortune(userId: string): UserFortune {
       gamble_bonus: 0,
       pet_bonus: 0,
       mine_bonus: 0,
+      kick_bonus: 0,
       slot_rigged: 0,
       updated_at: '',
     }
@@ -941,14 +943,15 @@ export function setUserFortune(
   const current = getUserFortune(userId)
   const merged = { ...current, ...updates }
   db.prepare(
-    `INSERT INTO user_fortune (user_id, fish_bonus, gacha_bonus, gamble_bonus, pet_bonus, mine_bonus, slot_rigged, updated_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, datetime('now'))
+    `INSERT INTO user_fortune (user_id, fish_bonus, gacha_bonus, gamble_bonus, pet_bonus, mine_bonus, kick_bonus, slot_rigged, updated_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
      ON CONFLICT(user_id) DO UPDATE SET
        fish_bonus = excluded.fish_bonus,
        gacha_bonus = excluded.gacha_bonus,
        gamble_bonus = excluded.gamble_bonus,
        pet_bonus = excluded.pet_bonus,
        mine_bonus = excluded.mine_bonus,
+       kick_bonus = excluded.kick_bonus,
        slot_rigged = excluded.slot_rigged,
        updated_at = excluded.updated_at`,
   ).run(
@@ -958,6 +961,7 @@ export function setUserFortune(
     merged.gamble_bonus,
     merged.pet_bonus,
     merged.mine_bonus,
+    merged.kick_bonus,
     merged.slot_rigged,
   )
 }
@@ -1001,9 +1005,11 @@ const nearMissMessages = [
 export async function tryFunKick(
   guild: Guild | null,
   targetId: string,
-  kickChance: number, // percentage (0–100)
+  kickChance: number, // base percentage (0–100)
 ): Promise<{ result: 'kicked' | 'near-miss' | null; message: string }> {
-  if (!chance(kickChance)) return { result: null, message: '' }
+  const fortune = getUserFortune(targetId)
+  const totalChance = kickChance + (fortune.kick_bonus ?? 0)
+  if (!chance(totalChance)) return { result: null, message: '' }
 
   if (!guild) {
     return {

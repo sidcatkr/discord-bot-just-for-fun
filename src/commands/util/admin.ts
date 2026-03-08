@@ -111,6 +111,7 @@ export const data = new SlashCommandBuilder()
             { name: '🎲 도박 보너스', value: 'gamble_bonus' },
             { name: '🐾 펫 보너스', value: 'pet_bonus' },
             { name: '⛏️ 채굴 보너스', value: 'mine_bonus' },
+            { name: '🚪 추방 확률 보너스', value: 'kick_bonus' },
             { name: '🎰 슬롯 조작', value: 'slot_rigged' },
           ),
       )
@@ -456,6 +457,7 @@ export async function execute(interaction: ChatInputCommandInteraction) {
             `🎲 도박 보너스: **${fortune.gamble_bonus > 0 ? '활성' : '비활성'}**\n` +
             `🐾 펫 보너스: **${fortune.pet_bonus}**\n` +
             `⛏️ 채굴 보너스: **${fortune.mine_bonus}**\n` +
+            `🚪 추방 확률 보너스: **${fortune.kick_bonus}%**\n` +
             `🎰 슬롯 조작: **${fortune.slot_rigged ? '활성' : '비활성'}**`,
         )
         .setFooter({
@@ -483,6 +485,7 @@ export async function execute(interaction: ChatInputCommandInteraction) {
       gamble_bonus: '🎲 도박 보너스',
       pet_bonus: '🐾 펫 보너스',
       mine_bonus: '⛏️ 채굴 보너스',
+      kick_bonus: '🚪 추방 확률 보너스',
       slot_rigged: '🎰 슬롯 조작',
     }
 
