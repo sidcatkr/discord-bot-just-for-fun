@@ -30,8 +30,8 @@ const RARITY_WEIGHTS: Record<string, number> = {
   mythic: 1.5,
 }
 
-const SINGLE_COST = 50
-const TEN_PULL_COST = 450 // 10% discount
+const SINGLE_COST = 300
+const TEN_PULL_COST = 2700 // 3000에서 10% 할인
 
 function rollItemRarity(): string {
   const roll = Math.random() * 100
