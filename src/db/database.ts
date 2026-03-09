@@ -210,4 +210,118 @@ try {
   db.exec('ALTER TABLE user_fortune ADD COLUMN kick_bonus REAL DEFAULT 0')
 }
 
+// ══════════════════════════════════════════════════════════
+//  Season 2 Tables — Character/Weapon/Relic/Gacha System
+// ══════════════════════════════════════════════════════════
+
+db.exec(`
+  -- Owned characters
+  CREATE TABLE IF NOT EXISTS owned_characters (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id TEXT NOT NULL,
+    character_id TEXT NOT NULL,
+    level INTEGER DEFAULT 1,
+    awakening INTEGER DEFAULT 0,
+    experience INTEGER DEFAULT 0,
+    UNIQUE(user_id, character_id)
+  );
+
+  -- Owned weapons
+  CREATE TABLE IF NOT EXISTS owned_weapons (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id TEXT NOT NULL,
+    weapon_id TEXT NOT NULL,
+    level INTEGER DEFAULT 1,
+    refinement INTEGER DEFAULT 1,
+    equipped_by TEXT DEFAULT NULL,
+    UNIQUE(user_id, weapon_id)
+  );
+
+  -- Owned relics
+  CREATE TABLE IF NOT EXISTS owned_relics (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id TEXT NOT NULL,
+    set_id TEXT NOT NULL,
+    slot TEXT NOT NULL,
+    main_stat_type TEXT NOT NULL,
+    main_stat_value REAL NOT NULL,
+    sub_stats TEXT NOT NULL DEFAULT '[]',
+    quality TEXT NOT NULL DEFAULT 'normal',
+    equipped_by TEXT DEFAULT NULL,
+    obtained_at TEXT NOT NULL DEFAULT (datetime('now'))
+  );
+
+  -- Party configuration (up to 4 characters)
+  CREATE TABLE IF NOT EXISTS parties (
+    user_id TEXT NOT NULL,
+    slot INTEGER NOT NULL,
+    character_id TEXT NOT NULL,
+    PRIMARY KEY (user_id, slot)
+  );
+
+  -- Gacha currency
+  CREATE TABLE IF NOT EXISTS gacha_currency (
+    user_id TEXT PRIMARY KEY,
+    stellarite INTEGER DEFAULT 0,
+    standard_pass INTEGER DEFAULT 0,
+    fate_pass INTEGER DEFAULT 0
+  );
+
+  -- Banner pity (per banner type)
+  CREATE TABLE IF NOT EXISTS banner_pity (
+    user_id TEXT NOT NULL,
+    banner_type TEXT NOT NULL,
+    pity_count INTEGER DEFAULT 0,
+    guaranteed INTEGER DEFAULT 0,
+    PRIMARY KEY (user_id, banner_type)
+  );
+
+  -- Active banners
+  CREATE TABLE IF NOT EXISTS active_banners (
+    banner_type TEXT PRIMARY KEY,
+    featured_id TEXT NOT NULL,
+    featured_4star_ids TEXT NOT NULL DEFAULT '[]',
+    started_at TEXT NOT NULL DEFAULT (datetime('now'))
+  );
+
+  -- Stamina
+  CREATE TABLE IF NOT EXISTS stamina (
+    user_id TEXT PRIMARY KEY,
+    current_stamina INTEGER DEFAULT 180,
+    last_update TEXT NOT NULL DEFAULT (datetime('now'))
+  );
+
+  -- Character XP materials
+  CREATE TABLE IF NOT EXISTS materials (
+    user_id TEXT PRIMARY KEY,
+    char_xp_material INTEGER DEFAULT 0,
+    weapon_xp_material INTEGER DEFAULT 0
+  );
+
+  -- Dungeon clear records
+  CREATE TABLE IF NOT EXISTS dungeon_clears (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id TEXT NOT NULL,
+    dungeon_id TEXT NOT NULL,
+    difficulty INTEGER NOT NULL,
+    cleared_at TEXT NOT NULL DEFAULT (datetime('now'))
+  );
+`)
+
+// Migrate: add character_gacha_bonus and weapon_gacha_bonus to user_fortune
+try {
+  db.prepare('SELECT character_gacha_bonus FROM user_fortune LIMIT 1').get()
+} catch {
+  db.exec(
+    'ALTER TABLE user_fortune ADD COLUMN character_gacha_bonus REAL DEFAULT 0',
+  )
+}
+try {
+  db.prepare('SELECT weapon_gacha_bonus FROM user_fortune LIMIT 1').get()
+} catch {
+  db.exec(
+    'ALTER TABLE user_fortune ADD COLUMN weapon_gacha_bonus REAL DEFAULT 0',
+  )
+}
+
 export default db

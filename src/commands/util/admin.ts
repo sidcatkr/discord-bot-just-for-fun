@@ -8,7 +8,15 @@ import {
   getOrCreatePlayer,
   getUserFortune,
   setUserFortune,
+  setActiveBanner,
+  getActiveBanner,
+  addStellarite,
+  addStandardPass,
+  addFatePass,
+  getGachaCurrency,
 } from '../../db/helpers.js'
+import { characterMap, allCharacters } from '../../data/characters.js'
+import { weaponMap, allWeapons } from '../../data/weapons.js'
 
 const BOT_OWNER_ID = process.env.BOT_OWNER_ID ?? ''
 
@@ -113,10 +121,60 @@ export const data = new SlashCommandBuilder()
             { name: '⛏️ 채굴 보너스', value: 'mine_bonus' },
             { name: '🚪 추방 확률 보너스', value: 'kick_bonus' },
             { name: '🎰 슬롯 조작', value: 'slot_rigged' },
+            { name: '🎭 캐릭터 가챠 보너스', value: 'character_gacha_bonus' },
+            { name: '⚔️ 무기 가챠 보너스', value: 'weapon_gacha_bonus' },
           ),
       )
       .addNumberOption((opt) =>
         opt.setName('value').setDescription('설정할 값 (0 = 비활성화)'),
+      ),
+  )
+  .addSubcommand((sub) =>
+    sub
+      .setName('banner')
+      .setDescription('픽업 배너를 설정합니다')
+      .addStringOption((opt) =>
+        opt
+          .setName('type')
+          .setDescription('배너 종류')
+          .setRequired(true)
+          .addChoices(
+            { name: '🔥 캐릭터 픽업', value: 'character' },
+            { name: '⚔️ 무기 픽업', value: 'weapon' },
+          ),
+      )
+      .addStringOption((opt) =>
+        opt
+          .setName('featured_id')
+          .setDescription('픽업 대상 ID')
+          .setRequired(true),
+      )
+      .addStringOption((opt) =>
+        opt
+          .setName('featured_4stars')
+          .setDescription('픽업 4성 ID들 (쉼표 구분)'),
+      ),
+  )
+  .addSubcommand((sub) =>
+    sub
+      .setName('currency')
+      .setDescription('유저의 가챠 재화를 지급합니다')
+      .addUserOption((opt) =>
+        opt.setName('user').setDescription('대상 유저').setRequired(true),
+      )
+      .addStringOption((opt) =>
+        opt
+          .setName('type')
+          .setDescription('재화 종류')
+          .setRequired(true)
+          .addChoices(
+            { name: '💎 성흔석', value: 'stellarite' },
+            { name: '🎫 별빛소환권', value: 'standard_pass' },
+            { name: '🌟 운명의소환권', value: 'fate_pass' },
+          ),
+      )
+      .addIntegerOption((opt) =>
+        opt.setName('amount').setDescription('수량').setRequired(true),
       ),
   )
 
@@ -458,7 +516,9 @@ export async function execute(interaction: ChatInputCommandInteraction) {
             `🐾 펫 보너스: **${fortune.pet_bonus}**\n` +
             `⛏️ 채굴 보너스: **${fortune.mine_bonus}**\n` +
             `🚪 추방 확률 보너스: **${fortune.kick_bonus}%**\n` +
-            `🎰 슬롯 조작: **${fortune.slot_rigged ? '활성' : '비활성'}**`,
+            `🎰 슬롯 조작: **${fortune.slot_rigged ? '활성' : '비활성'}**\n` +
+            `🎭 캐릭터 가챠 보너스: **${(fortune as any).character_gacha_bonus ?? 0}**\n` +
+            `⚔️ 무기 가챠 보너스: **${(fortune as any).weapon_gacha_bonus ?? 0}**`,
         )
         .setFooter({
           text: fortune.updated_at
@@ -487,6 +547,8 @@ export async function execute(interaction: ChatInputCommandInteraction) {
       mine_bonus: '⛏️ 채굴 보너스',
       kick_bonus: '🚪 추방 확률 보너스',
       slot_rigged: '🎰 슬롯 조작',
+      character_gacha_bonus: '🎭 캐릭터 가챠 보너스',
+      weapon_gacha_bonus: '⚔️ 무기 가챠 보너스',
     }
 
     const oldValue = (fortune as any)[type] ?? 0
@@ -502,6 +564,96 @@ export async function execute(interaction: ChatInputCommandInteraction) {
           `**항목:** ${typeLabels[type] ?? type}\n` +
           `**변경 전:** ${type === 'slot_rigged' ? (oldValue ? '활성' : '비활성') : oldValue}\n` +
           `**변경 후:** ${type === 'slot_rigged' ? (value ? '활성' : '비활성') : value}`,
+      )
+      .setTimestamp()
+
+    await interaction.reply({ embeds: [embed], ephemeral: true })
+    return
+  }
+
+  // ── banner (set featured pickup) ──
+  if (sub === 'banner') {
+    const type = interaction.options.getString('type', true)
+    const featuredId = interaction.options.getString('featured_id', true)
+    const featured4StarsStr =
+      interaction.options.getString('featured_4stars') ?? ''
+    const featured4Stars = featured4StarsStr
+      ? featured4StarsStr
+          .split(',')
+          .map((s) => s.trim())
+          .filter(Boolean)
+      : []
+
+    // Validate featured ID
+    if (type === 'character') {
+      if (!characterMap.has(featuredId)) {
+        await interaction.reply({
+          content: `❌ 캐릭터 ID '${featuredId}'를 찾을 수 없습니다.`,
+          ephemeral: true,
+        })
+        return
+      }
+    } else {
+      if (!weaponMap.has(featuredId)) {
+        await interaction.reply({
+          content: `❌ 무기 ID '${featuredId}'를 찾을 수 없습니다.`,
+          ephemeral: true,
+        })
+        return
+      }
+    }
+
+    setActiveBanner(type, featuredId, featured4Stars)
+
+    const name =
+      type === 'character'
+        ? (characterMap.get(featuredId)?.name ?? featuredId)
+        : (weaponMap.get(featuredId)?.name ?? featuredId)
+
+    const embed = new EmbedBuilder()
+      .setColor(0xff4500)
+      .setTitle('🔧 배너 설정 완료')
+      .setDescription(
+        `**배너:** ${type === 'character' ? '🔥 캐릭터 픽업' : '⚔️ 무기 픽업'}\n` +
+          `**픽업 대상:** ${name}\n` +
+          (featured4Stars.length > 0
+            ? `**4성 픽업:** ${featured4Stars.join(', ')}`
+            : ''),
+      )
+      .setTimestamp()
+
+    await interaction.reply({ embeds: [embed], ephemeral: true })
+    return
+  }
+
+  // ── currency (give gacha currency) ──
+  if (sub === 'currency') {
+    const target = interaction.options.getUser('user', true)
+    const type = interaction.options.getString('type', true) as
+      | 'stellarite'
+      | 'standard_pass'
+      | 'fate_pass'
+    const amount = interaction.options.getInteger('amount', true)
+
+    if (type === 'stellarite') addStellarite(target.id, amount)
+    else if (type === 'standard_pass') addStandardPass(target.id, amount)
+    else addFatePass(target.id, amount)
+
+    const labels: Record<string, string> = {
+      stellarite: '💎 성흔석',
+      standard_pass: '🎫 별빛소환권',
+      fate_pass: '🌟 운명의소환권',
+    }
+    const cur = getGachaCurrency(target.id)
+
+    const embed = new EmbedBuilder()
+      .setColor(0x2ecc71)
+      .setTitle('🔧 재화 지급 완료')
+      .setDescription(
+        `**대상:** ${target}\n` +
+          `**항목:** ${labels[type]}\n` +
+          `**지급량:** +${amount}\n` +
+          `**현재 잔고:** 💎${cur.stellarite} | 🎫${cur.standard_pass} | 🌟${cur.fate_pass}`,
       )
       .setTimestamp()
 

@@ -10,6 +10,8 @@ import {
   healPlayer,
   random,
   chance,
+  addStellarite,
+  addStandardPass,
 } from '../../db/helpers.js'
 
 export const data = new SlashCommandBuilder()
@@ -43,9 +45,13 @@ export async function execute(interaction: ChatInputCommandInteraction) {
   const healAmount = random(30, 70)
   const bonusGold = chance(15) ? random(500, 2000) : 0
   const gachaTicket = chance(30)
+  const stellariteAmount = random(150, 300)
+  const bonusPass = chance(20)
 
   addGold(user.id, guildId, goldAmount + bonusGold)
   healPlayer(user.id, guildId, healAmount)
+  addStellarite(user.id, stellariteAmount)
+  if (bonusPass) addStandardPass(user.id, 1)
   updatePlayer(user.id, guildId, {
     last_daily: now.toISOString().replace('T', ' ').split('.')[0],
   })
@@ -57,6 +63,7 @@ export async function execute(interaction: ChatInputCommandInteraction) {
     .addFields(
       { name: '💰 골드', value: `+${goldAmount}G`, inline: true },
       { name: '❤️ 회복', value: `HP +${healAmount}`, inline: true },
+      { name: '💎 성흔석', value: `+${stellariteAmount}`, inline: true },
     )
 
   if (bonusGold > 0) {
@@ -69,8 +76,17 @@ export async function execute(interaction: ChatInputCommandInteraction) {
 
   if (gachaTicket) {
     embed.addFields({
-      name: '🎫 가챠 티켓!',
-      value: '무료 가챠 1회 획득! `/gacha` 로 사용하세요!',
+      name: '🎫 별빛소환권!',
+      value: '+1장 획득! `/gacha`로 사용하세요!',
+      inline: false,
+    })
+    addStandardPass(user.id, 1)
+  }
+
+  if (bonusPass) {
+    embed.addFields({
+      name: '🌟 보너스 별빛소환권!',
+      value: '+1장 추가 획득! (20% 확률)',
       inline: false,
     })
   }

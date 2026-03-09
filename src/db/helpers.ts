@@ -914,6 +914,8 @@ export interface UserFortune {
   mine_bonus: number
   kick_bonus: number
   slot_rigged: number
+  character_gacha_bonus: number
+  weapon_gacha_bonus: number
   updated_at: string
 }
 
@@ -931,6 +933,8 @@ export function getUserFortune(userId: string): UserFortune {
       mine_bonus: 0,
       kick_bonus: 0,
       slot_rigged: 0,
+      character_gacha_bonus: 0,
+      weapon_gacha_bonus: 0,
       updated_at: '',
     }
   )
@@ -1067,4 +1071,496 @@ export function resetGachaPity(userId: string, guildId: string): void {
     `INSERT INTO gacha_pity (user_id, guild_id, pity_count) VALUES (?, ?, 0)
      ON CONFLICT(user_id, guild_id) DO UPDATE SET pity_count = 0`,
   ).run(userId, guildId)
+}
+
+// ══════════════════════════════════════════════════════════
+//  Season 2 — Character System Helpers
+// ══════════════════════════════════════════════════════════
+
+export interface OwnedCharacter {
+  id: number
+  user_id: string
+  character_id: string
+  level: number
+  awakening: number
+  experience: number
+}
+
+export function getOwnedCharacters(userId: string): OwnedCharacter[] {
+  return db
+    .prepare('SELECT * FROM owned_characters WHERE user_id = ?')
+    .all(userId) as OwnedCharacter[]
+}
+
+export function getOwnedCharacter(
+  userId: string,
+  characterId: string,
+): OwnedCharacter | undefined {
+  return db
+    .prepare(
+      'SELECT * FROM owned_characters WHERE user_id = ? AND character_id = ?',
+    )
+    .get(userId, characterId) as OwnedCharacter | undefined
+}
+
+export function addCharacter(
+  userId: string,
+  characterId: string,
+): { isNew: boolean; awakening: number } {
+  const existing = getOwnedCharacter(userId, characterId)
+  if (existing) {
+    const newAwakening = Math.min(existing.awakening + 1, 6)
+    db.prepare(
+      'UPDATE owned_characters SET awakening = ? WHERE user_id = ? AND character_id = ?',
+    ).run(newAwakening, userId, characterId)
+    return { isNew: false, awakening: newAwakening }
+  }
+  db.prepare(
+    'INSERT INTO owned_characters (user_id, character_id) VALUES (?, ?)',
+  ).run(userId, characterId)
+  return { isNew: true, awakening: 0 }
+}
+
+export function addCharacterXp(
+  userId: string,
+  characterId: string,
+  amount: number,
+): { leveled: boolean; newLevel: number } {
+  const char = getOwnedCharacter(userId, characterId)
+  if (!char) return { leveled: false, newLevel: 0 }
+
+  const xpNeeded = char.level * 150
+  const newXp = char.experience + amount
+  if (newXp >= xpNeeded && char.level < 80) {
+    const newLevel = char.level + 1
+    db.prepare(
+      'UPDATE owned_characters SET level = ?, experience = ? WHERE user_id = ? AND character_id = ?',
+    ).run(newLevel, newXp - xpNeeded, userId, characterId)
+    return { leveled: true, newLevel }
+  }
+  db.prepare(
+    'UPDATE owned_characters SET experience = ? WHERE user_id = ? AND character_id = ?',
+  ).run(newXp, userId, characterId)
+  return { leveled: false, newLevel: char.level }
+}
+
+// ══════════════════════════════════════════════════════════
+//  Season 2 — Weapon System Helpers
+// ══════════════════════════════════════════════════════════
+
+export interface OwnedWeapon {
+  id: number
+  user_id: string
+  weapon_id: string
+  level: number
+  refinement: number
+  equipped_by: string | null
+}
+
+export function getOwnedWeapons(userId: string): OwnedWeapon[] {
+  return db
+    .prepare('SELECT * FROM owned_weapons WHERE user_id = ?')
+    .all(userId) as OwnedWeapon[]
+}
+
+export function getOwnedWeapon(
+  userId: string,
+  weaponId: string,
+): OwnedWeapon | undefined {
+  return db
+    .prepare('SELECT * FROM owned_weapons WHERE user_id = ? AND weapon_id = ?')
+    .get(userId, weaponId) as OwnedWeapon | undefined
+}
+
+export function addWeapon(
+  userId: string,
+  weaponId: string,
+): { isNew: boolean; refinement: number } {
+  const existing = getOwnedWeapon(userId, weaponId)
+  if (existing) {
+    const newRef = Math.min(existing.refinement + 1, 5)
+    db.prepare(
+      'UPDATE owned_weapons SET refinement = ? WHERE user_id = ? AND weapon_id = ?',
+    ).run(newRef, userId, weaponId)
+    return { isNew: false, refinement: newRef }
+  }
+  db.prepare(
+    'INSERT INTO owned_weapons (user_id, weapon_id) VALUES (?, ?)',
+  ).run(userId, weaponId)
+  return { isNew: true, refinement: 1 }
+}
+
+export function equipWeaponToCharacter(
+  userId: string,
+  weaponId: string,
+  characterId: string | null,
+): void {
+  // Unequip from any character currently using this weapon
+  db.prepare(
+    'UPDATE owned_weapons SET equipped_by = NULL WHERE user_id = ? AND weapon_id = ?',
+  ).run(userId, weaponId)
+  if (characterId) {
+    // Unequip any weapon currently on target character
+    db.prepare(
+      'UPDATE owned_weapons SET equipped_by = NULL WHERE user_id = ? AND equipped_by = ?',
+    ).run(userId, characterId)
+    db.prepare(
+      'UPDATE owned_weapons SET equipped_by = ? WHERE user_id = ? AND weapon_id = ?',
+    ).run(characterId, userId, weaponId)
+  }
+}
+
+export function getWeaponEquippedBy(
+  userId: string,
+  characterId: string,
+): OwnedWeapon | undefined {
+  return db
+    .prepare(
+      'SELECT * FROM owned_weapons WHERE user_id = ? AND equipped_by = ?',
+    )
+    .get(userId, characterId) as OwnedWeapon | undefined
+}
+
+// ══════════════════════════════════════════════════════════
+//  Season 2 — Relic System Helpers
+// ══════════════════════════════════════════════════════════
+
+export interface OwnedRelic {
+  id: number
+  user_id: string
+  set_id: string
+  slot: string
+  main_stat_type: string
+  main_stat_value: number
+  sub_stats: string // JSON string
+  quality: string
+  equipped_by: string | null
+  obtained_at: string
+}
+
+export function getOwnedRelics(userId: string): OwnedRelic[] {
+  return db
+    .prepare('SELECT * FROM owned_relics WHERE user_id = ?')
+    .all(userId) as OwnedRelic[]
+}
+
+export function getRelicsForCharacter(
+  userId: string,
+  characterId: string,
+): OwnedRelic[] {
+  return db
+    .prepare('SELECT * FROM owned_relics WHERE user_id = ? AND equipped_by = ?')
+    .all(userId, characterId) as OwnedRelic[]
+}
+
+export function addRelic(
+  userId: string,
+  setId: string,
+  slot: string,
+  mainStatType: string,
+  mainStatValue: number,
+  subStats: object[],
+  quality: string,
+): number {
+  const result = db
+    .prepare(
+      'INSERT INTO owned_relics (user_id, set_id, slot, main_stat_type, main_stat_value, sub_stats, quality) VALUES (?, ?, ?, ?, ?, ?, ?)',
+    )
+    .run(
+      userId,
+      setId,
+      slot,
+      mainStatType,
+      mainStatValue,
+      JSON.stringify(subStats),
+      quality,
+    )
+  return Number(result.lastInsertRowid)
+}
+
+export function equipRelic(
+  userId: string,
+  relicId: number,
+  characterId: string | null,
+): void {
+  if (characterId) {
+    // Unequip any relic in the same slot on this character
+    const relic = db
+      .prepare('SELECT slot FROM owned_relics WHERE id = ? AND user_id = ?')
+      .get(relicId, userId) as { slot: string } | undefined
+    if (relic) {
+      db.prepare(
+        'UPDATE owned_relics SET equipped_by = NULL WHERE user_id = ? AND equipped_by = ? AND slot = ?',
+      ).run(userId, characterId, relic.slot)
+    }
+  }
+  db.prepare(
+    'UPDATE owned_relics SET equipped_by = ? WHERE id = ? AND user_id = ?',
+  ).run(characterId, relicId, userId)
+}
+
+export function deleteRelic(userId: string, relicId: number): boolean {
+  const result = db
+    .prepare(
+      'DELETE FROM owned_relics WHERE id = ? AND user_id = ? AND equipped_by IS NULL',
+    )
+    .run(relicId, userId)
+  return result.changes > 0
+}
+
+// ══════════════════════════════════════════════════════════
+//  Season 2 — Party System Helpers
+// ══════════════════════════════════════════════════════════
+
+export function getParty(userId: string): string[] {
+  const rows = db
+    .prepare(
+      'SELECT character_id FROM parties WHERE user_id = ? ORDER BY slot ASC',
+    )
+    .all(userId) as { character_id: string }[]
+  return rows.map((r) => r.character_id)
+}
+
+export function setPartySlot(
+  userId: string,
+  slot: number,
+  characterId: string,
+): void {
+  db.prepare(
+    'INSERT INTO parties (user_id, slot, character_id) VALUES (?, ?, ?) ON CONFLICT(user_id, slot) DO UPDATE SET character_id = ?',
+  ).run(userId, slot, characterId, characterId)
+}
+
+export function removePartySlot(userId: string, slot: number): void {
+  db.prepare('DELETE FROM parties WHERE user_id = ? AND slot = ?').run(
+    userId,
+    slot,
+  )
+}
+
+export function clearParty(userId: string): void {
+  db.prepare('DELETE FROM parties WHERE user_id = ?').run(userId)
+}
+
+// ══════════════════════════════════════════════════════════
+//  Season 2 — Gacha Currency Helpers
+// ══════════════════════════════════════════════════════════
+
+export interface GachaCurrency {
+  stellarite: number
+  standard_pass: number
+  fate_pass: number
+}
+
+export function getGachaCurrency(userId: string): GachaCurrency {
+  const row = db
+    .prepare('SELECT * FROM gacha_currency WHERE user_id = ?')
+    .get(userId) as GachaCurrency | undefined
+  if (row) return row
+  db.prepare('INSERT INTO gacha_currency (user_id) VALUES (?)').run(userId)
+  return { stellarite: 0, standard_pass: 0, fate_pass: 0 }
+}
+
+export function addStellarite(userId: string, amount: number): void {
+  db.prepare(
+    'INSERT INTO gacha_currency (user_id, stellarite) VALUES (?, ?) ON CONFLICT(user_id) DO UPDATE SET stellarite = stellarite + ?',
+  ).run(userId, amount, amount)
+}
+
+export function addStandardPass(userId: string, amount: number): void {
+  db.prepare(
+    'INSERT INTO gacha_currency (user_id, standard_pass) VALUES (?, ?) ON CONFLICT(user_id) DO UPDATE SET standard_pass = standard_pass + ?',
+  ).run(userId, amount, amount)
+}
+
+export function addFatePass(userId: string, amount: number): void {
+  db.prepare(
+    'INSERT INTO gacha_currency (user_id, fate_pass) VALUES (?, ?) ON CONFLICT(user_id) DO UPDATE SET fate_pass = fate_pass + ?',
+  ).run(userId, amount, amount)
+}
+
+export function spendCurrency(
+  userId: string,
+  field: 'stellarite' | 'standard_pass' | 'fate_pass',
+  amount: number,
+): boolean {
+  const cur = getGachaCurrency(userId)
+  if (cur[field] < amount) return false
+  db.prepare(
+    `UPDATE gacha_currency SET ${field} = ${field} - ? WHERE user_id = ?`,
+  ).run(amount, userId)
+  return true
+}
+
+// ══════════════════════════════════════════════════════════
+//  Season 2 — Banner Pity Helpers (per banner)
+// ══════════════════════════════════════════════════════════
+
+export interface BannerPity {
+  pity_count: number
+  guaranteed: boolean // 50/50 lost → next is guaranteed featured
+}
+
+export function getBannerPity(userId: string, bannerType: string): BannerPity {
+  const row = db
+    .prepare(
+      'SELECT pity_count, guaranteed FROM banner_pity WHERE user_id = ? AND banner_type = ?',
+    )
+    .get(userId, bannerType) as
+    | { pity_count: number; guaranteed: number }
+    | undefined
+  return {
+    pity_count: row?.pity_count ?? 0,
+    guaranteed: (row?.guaranteed ?? 0) === 1,
+  }
+}
+
+export function incrementBannerPity(
+  userId: string,
+  bannerType: string,
+): number {
+  db.prepare(
+    `INSERT INTO banner_pity (user_id, banner_type, pity_count) VALUES (?, ?, 1)
+     ON CONFLICT(user_id, banner_type) DO UPDATE SET pity_count = pity_count + 1`,
+  ).run(userId, bannerType)
+  return getBannerPity(userId, bannerType).pity_count
+}
+
+export function resetBannerPity(userId: string, bannerType: string): void {
+  db.prepare(
+    `INSERT INTO banner_pity (user_id, banner_type, pity_count, guaranteed) VALUES (?, ?, 0, 0)
+     ON CONFLICT(user_id, banner_type) DO UPDATE SET pity_count = 0`,
+  ).run(userId, bannerType)
+}
+
+export function setGuaranteed(
+  userId: string,
+  bannerType: string,
+  val: boolean,
+): void {
+  db.prepare(
+    `INSERT INTO banner_pity (user_id, banner_type, guaranteed) VALUES (?, ?, ?)
+     ON CONFLICT(user_id, banner_type) DO UPDATE SET guaranteed = ?`,
+  ).run(userId, bannerType, val ? 1 : 0, val ? 1 : 0)
+}
+
+// ══════════════════════════════════════════════════════════
+//  Season 2 — Active Banner Helpers
+// ══════════════════════════════════════════════════════════
+
+export interface ActiveBanner {
+  banner_type: string
+  featured_id: string
+  featured_4star_ids: string[]
+}
+
+export function getActiveBanner(bannerType: string): ActiveBanner | undefined {
+  const row = db
+    .prepare('SELECT * FROM active_banners WHERE banner_type = ?')
+    .get(bannerType) as
+    | { banner_type: string; featured_id: string; featured_4star_ids: string }
+    | undefined
+  if (!row) return undefined
+  return {
+    banner_type: row.banner_type,
+    featured_id: row.featured_id,
+    featured_4star_ids: JSON.parse(row.featured_4star_ids),
+  }
+}
+
+export function setActiveBanner(
+  bannerType: string,
+  featuredId: string,
+  featured4StarIds: string[] = [],
+): void {
+  db.prepare(
+    `INSERT INTO active_banners (banner_type, featured_id, featured_4star_ids)
+     VALUES (?, ?, ?) ON CONFLICT(banner_type) DO UPDATE SET featured_id = ?, featured_4star_ids = ?, started_at = datetime('now')`,
+  ).run(
+    bannerType,
+    featuredId,
+    JSON.stringify(featured4StarIds),
+    featuredId,
+    JSON.stringify(featured4StarIds),
+  )
+}
+
+// ══════════════════════════════════════════════════════════
+//  Season 2 — Stamina Helpers
+// ══════════════════════════════════════════════════════════
+
+const MAX_STAMINA = 180
+const STAMINA_REGEN_MINUTES = 6
+
+export function getStamina(userId: string): number {
+  const row = db
+    .prepare(
+      'SELECT current_stamina, last_update FROM stamina WHERE user_id = ?',
+    )
+    .get(userId) as { current_stamina: number; last_update: string } | undefined
+  if (!row) {
+    db.prepare('INSERT INTO stamina (user_id) VALUES (?)').run(userId)
+    return MAX_STAMINA
+  }
+  const elapsed =
+    (Date.now() - new Date(row.last_update + 'Z').getTime()) / 60000
+  const regen = Math.floor(elapsed / STAMINA_REGEN_MINUTES)
+  const updated = Math.min(MAX_STAMINA, row.current_stamina + regen)
+  if (regen > 0) {
+    db.prepare(
+      "UPDATE stamina SET current_stamina = ?, last_update = datetime('now') WHERE user_id = ?",
+    ).run(updated, userId)
+  }
+  return updated
+}
+
+export function spendStamina(userId: string, amount: number): boolean {
+  const current = getStamina(userId)
+  if (current < amount) return false
+  db.prepare(
+    "UPDATE stamina SET current_stamina = current_stamina - ?, last_update = datetime('now') WHERE user_id = ?",
+  ).run(amount, userId)
+  return true
+}
+
+// ══════════════════════════════════════════════════════════
+//  Season 2 — Materials Helpers
+// ══════════════════════════════════════════════════════════
+
+export interface Materials {
+  char_xp_material: number
+  weapon_xp_material: number
+}
+
+export function getMaterials(userId: string): Materials {
+  const row = db
+    .prepare('SELECT * FROM materials WHERE user_id = ?')
+    .get(userId) as Materials | undefined
+  if (row) return row
+  db.prepare('INSERT INTO materials (user_id) VALUES (?)').run(userId)
+  return { char_xp_material: 0, weapon_xp_material: 0 }
+}
+
+export function addMaterial(
+  userId: string,
+  type: 'char_xp_material' | 'weapon_xp_material',
+  amount: number,
+): void {
+  db.prepare(
+    `INSERT INTO materials (user_id, ${type}) VALUES (?, ?)
+     ON CONFLICT(user_id) DO UPDATE SET ${type} = ${type} + ?`,
+  ).run(userId, amount, amount)
+}
+
+export function spendMaterial(
+  userId: string,
+  type: 'char_xp_material' | 'weapon_xp_material',
+  amount: number,
+): boolean {
+  const mats = getMaterials(userId)
+  if (mats[type] < amount) return false
+  db.prepare(
+    `UPDATE materials SET ${type} = ${type} - ? WHERE user_id = ?`,
+  ).run(amount, userId)
+  return true
 }

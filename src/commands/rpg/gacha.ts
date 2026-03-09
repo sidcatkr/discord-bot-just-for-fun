@@ -2,406 +2,625 @@ import {
   ChatInputCommandInteraction,
   EmbedBuilder,
   SlashCommandBuilder,
+  ActionRowBuilder,
+  StringSelectMenuBuilder,
+  ComponentType,
 } from 'discord.js'
 import {
   getOrCreatePlayer,
-  addGold,
-  addItem,
-  addTitle,
   isPlayerDead,
   pick,
   sleep,
   getUserFortune,
-  getGachaPity,
-  incrementGachaPity,
-  resetGachaPity,
+  getGachaCurrency,
+  addStellarite,
+  addStandardPass,
+  addFatePass,
+  spendCurrency,
+  getBannerPity,
+  incrementBannerPity,
+  resetBannerPity,
+  setGuaranteed,
+  getActiveBanner,
+  addCharacter,
+  addWeapon,
 } from '../../db/helpers.js'
 import {
-  gachaPool,
-  rarityColors,
-  rarityLabels,
-  type GachaItem,
-} from '../../data/gacha-items.js'
+  allCharacters,
+  fiveStarPool,
+  fourStarPool,
+  characterMap,
+  elementEmoji,
+  pathEmoji,
+  starRarityColors,
+  starRarityLabels,
+  type CharacterTemplate,
+} from '../../data/characters.js'
+import {
+  allWeapons,
+  fiveStarWeaponPool,
+  fourStarWeaponPool,
+  threeStarWeaponPool,
+  weaponMap,
+  type WeaponTemplate,
+} from '../../data/weapons.js'
 
-// Track users currently rolling gacha
+// Prevent concurrent rolls
 const rollingUsers = new Set<string>()
+
+// ── Banner types ──
+type BannerType = 'standard' | 'character' | 'weapon'
+
+// ── Pity constants ──
+const HARD_PITY = 90
+const SOFT_PITY_START = 74
+const BASE_5STAR_RATE = 0.006 // 0.6%
+const SOFT_PITY_INCREMENT = 0.06 // +6% per pull after 74
+
+// ── Currency costs ──
+const STELLARITE_PER_PASS = 160
+const STELLARITE_PER_FATE = 160
+
+function get5StarRate(pityCount: number, bonusRate: number): number {
+  if (pityCount >= HARD_PITY - 1) return 1.0 // hard pity
+  if (pityCount >= SOFT_PITY_START) {
+    return Math.min(
+      1.0,
+      BASE_5STAR_RATE +
+        (pityCount - SOFT_PITY_START + 1) * SOFT_PITY_INCREMENT +
+        bonusRate,
+    )
+  }
+  return BASE_5STAR_RATE + bonusRate
+}
+
+interface GachaResult {
+  type: 'character' | 'weapon'
+  id: string
+  name: string
+  emoji: string
+  rarity: 3 | 4 | 5
+  isFeatured: boolean
+  pitied: boolean
+  won5050: boolean | null // null if not applicable
+}
+
+function rollBanner(userId: string, bannerType: BannerType): GachaResult {
+  const fortune = getUserFortune(userId)
+  const bonusRate =
+    bannerType === 'weapon'
+      ? (fortune?.weapon_gacha_bonus ?? 0) / 100
+      : (fortune?.character_gacha_bonus ?? fortune?.gacha_bonus ?? 0) / 100
+
+  const pity = getBannerPity(userId, bannerType)
+  const currentPity = incrementBannerPity(userId, bannerType)
+  const rate5 = get5StarRate(currentPity - 1, bonusRate)
+
+  const roll = Math.random()
+
+  if (bannerType === 'standard') {
+    return rollStandard(userId, roll, rate5)
+  } else if (bannerType === 'character') {
+    return rollCharacterPickup(userId, roll, rate5)
+  } else {
+    return rollWeaponPickup(userId, roll, rate5)
+  }
+}
+
+function rollStandard(
+  userId: string,
+  roll: number,
+  rate5: number,
+): GachaResult {
+  if (roll < rate5) {
+    // 5★ — 50% character, 50% weapon
+    resetBannerPity(userId, 'standard')
+    if (Math.random() < 0.5) {
+      const char = pick(fiveStarPool)
+      return {
+        type: 'character',
+        id: char.id,
+        name: char.name,
+        emoji: char.emoji,
+        rarity: 5,
+        isFeatured: false,
+        pitied: rate5 >= 1,
+        won5050: null,
+      }
+    } else {
+      const wpn = pick(fiveStarWeaponPool)
+      return {
+        type: 'weapon',
+        id: wpn.id,
+        name: wpn.name,
+        emoji: wpn.emoji,
+        rarity: 5,
+        isFeatured: false,
+        pitied: rate5 >= 1,
+        won5050: null,
+      }
+    }
+  } else if (roll < rate5 + 0.051) {
+    // 4★ (5.1%) — 50% character, 50% weapon
+    if (Math.random() < 0.5) {
+      const char = pick(fourStarPool)
+      return {
+        type: 'character',
+        id: char.id,
+        name: char.name,
+        emoji: char.emoji,
+        rarity: 4,
+        isFeatured: false,
+        pitied: false,
+        won5050: null,
+      }
+    } else {
+      const wpn = pick(fourStarWeaponPool)
+      return {
+        type: 'weapon',
+        id: wpn.id,
+        name: wpn.name,
+        emoji: wpn.emoji,
+        rarity: 4,
+        isFeatured: false,
+        pitied: false,
+        won5050: null,
+      }
+    }
+  } else {
+    // 3★ weapon
+    const wpn = pick(threeStarWeaponPool)
+    return {
+      type: 'weapon',
+      id: wpn.id,
+      name: wpn.name,
+      emoji: wpn.emoji,
+      rarity: 3,
+      isFeatured: false,
+      pitied: false,
+      won5050: null,
+    }
+  }
+}
+
+function rollCharacterPickup(
+  userId: string,
+  roll: number,
+  rate5: number,
+): GachaResult {
+  const banner = getActiveBanner('character')
+
+  if (roll < rate5) {
+    // 5★ hit!
+    resetBannerPity(userId, 'character')
+    const pityInfo = getBannerPity(userId, 'character')
+
+    let char: CharacterTemplate
+    let won5050: boolean
+
+    if (pityInfo.guaranteed && banner) {
+      // Guaranteed featured
+      char = characterMap.get(banner.featured_id) ?? pick(fiveStarPool)
+      setGuaranteed(userId, 'character', false)
+      won5050 = true
+    } else {
+      // 50/50
+      if (Math.random() < 0.5 && banner) {
+        char = characterMap.get(banner.featured_id) ?? pick(fiveStarPool)
+        won5050 = true
+      } else {
+        char = pick(fiveStarPool)
+        won5050 = false
+        if (banner) setGuaranteed(userId, 'character', true)
+      }
+    }
+
+    return {
+      type: 'character',
+      id: char.id,
+      name: char.name,
+      emoji: char.emoji,
+      rarity: 5,
+      isFeatured: won5050 && !!banner,
+      pitied: rate5 >= 1,
+      won5050,
+    }
+  } else if (roll < rate5 + 0.051) {
+    // 4★ — check for featured uprate
+    if (banner && banner.featured_4star_ids.length > 0 && Math.random() < 0.5) {
+      const featuredId = pick(banner.featured_4star_ids)
+      const char = characterMap.get(featuredId) ?? pick(fourStarPool)
+      return {
+        type: 'character',
+        id: char.id,
+        name: char.name,
+        emoji: char.emoji,
+        rarity: 4,
+        isFeatured: true,
+        pitied: false,
+        won5050: null,
+      }
+    }
+    const char = pick(fourStarPool)
+    return {
+      type: 'character',
+      id: char.id,
+      name: char.name,
+      emoji: char.emoji,
+      rarity: 4,
+      isFeatured: false,
+      pitied: false,
+      won5050: null,
+    }
+  } else {
+    const wpn = pick(threeStarWeaponPool)
+    return {
+      type: 'weapon',
+      id: wpn.id,
+      name: wpn.name,
+      emoji: wpn.emoji,
+      rarity: 3,
+      isFeatured: false,
+      pitied: false,
+      won5050: null,
+    }
+  }
+}
+
+function rollWeaponPickup(
+  userId: string,
+  roll: number,
+  rate5: number,
+): GachaResult {
+  const banner = getActiveBanner('weapon')
+
+  if (roll < rate5) {
+    // 5★ weapon
+    resetBannerPity(userId, 'weapon')
+    const pityInfo = getBannerPity(userId, 'weapon')
+
+    let wpn: WeaponTemplate
+    let won5050: boolean
+
+    if (pityInfo.guaranteed && banner) {
+      wpn = weaponMap.get(banner.featured_id) ?? pick(fiveStarWeaponPool)
+      setGuaranteed(userId, 'weapon', false)
+      won5050 = true
+    } else {
+      if (Math.random() < 0.75 && banner) {
+        wpn = weaponMap.get(banner.featured_id) ?? pick(fiveStarWeaponPool)
+        won5050 = true
+      } else {
+        wpn = pick(fiveStarWeaponPool)
+        won5050 = false
+        if (banner) setGuaranteed(userId, 'weapon', true)
+      }
+    }
+
+    return {
+      type: 'weapon',
+      id: wpn.id,
+      name: wpn.name,
+      emoji: wpn.emoji,
+      rarity: 5,
+      isFeatured: won5050 && !!banner,
+      pitied: rate5 >= 1,
+      won5050,
+    }
+  } else if (roll < rate5 + 0.051) {
+    if (banner && banner.featured_4star_ids.length > 0 && Math.random() < 0.5) {
+      const featuredId = pick(banner.featured_4star_ids)
+      const wpn = weaponMap.get(featuredId) ?? pick(fourStarWeaponPool)
+      return {
+        type: 'weapon',
+        id: wpn.id,
+        name: wpn.name,
+        emoji: wpn.emoji,
+        rarity: 4,
+        isFeatured: true,
+        pitied: false,
+        won5050: null,
+      }
+    }
+    const wpn = pick(fourStarWeaponPool)
+    return {
+      type: 'weapon',
+      id: wpn.id,
+      name: wpn.name,
+      emoji: wpn.emoji,
+      rarity: 4,
+      isFeatured: false,
+      pitied: false,
+      won5050: null,
+    }
+  } else {
+    const wpn = pick(threeStarWeaponPool)
+    return {
+      type: 'weapon',
+      id: wpn.id,
+      name: wpn.name,
+      emoji: wpn.emoji,
+      rarity: 3,
+      isFeatured: false,
+      pitied: false,
+      won5050: null,
+    }
+  }
+}
+
+function addResultToAccount(userId: string, result: GachaResult): string {
+  if (result.type === 'character') {
+    const res = addCharacter(userId, result.id)
+    if (res.isNew) return `🆕 새 캐릭터!`
+    return `각성 ${res.awakening}단계 돌파!`
+  } else {
+    const res = addWeapon(userId, result.id)
+    if (res.isNew) return `🆕 새 무기!`
+    return `정련 ${res.refinement}단계!`
+  }
+}
+
+function formatResult(result: GachaResult, index?: number): string {
+  const stars = '⭐'.repeat(result.rarity)
+  const prefix = index !== undefined ? `${index + 1}. ` : ''
+  const featured = result.isFeatured ? ' **[UP]**' : ''
+  const pity = result.pitied ? ' 🛡️천장' : ''
+  const fiftyfifty =
+    result.won5050 === true
+      ? ' ✅50/50'
+      : result.won5050 === false
+        ? ' ❌픽뚫'
+        : ''
+  return `${prefix}${result.emoji} **${result.name}** ${stars}${featured}${pity}${fiftyfifty}`
+}
 
 export const data = new SlashCommandBuilder()
   .setName('gacha')
-  .setDescription('🎰 가챠를 돌린다! (비용: 300G)')
+  .setDescription('🎰 소환을 합니다!')
+  .addStringOption((opt) =>
+    opt
+      .setName('banner')
+      .setDescription('배너 선택')
+      .setRequired(true)
+      .addChoices(
+        { name: '🌟 일반 소환 (별빛소환권)', value: 'standard' },
+        { name: '🔥 캐릭터 픽업 (운명의소환권)', value: 'character' },
+        { name: '⚔️ 무기 픽업 (운명의소환권)', value: 'weapon' },
+      ),
+  )
   .addIntegerOption((opt) =>
     opt
       .setName('count')
-      .setDescription('뽑기 횟수 (1 또는 10)')
+      .setDescription('소환 횟수')
       .addChoices(
-        { name: '1연차 (300G)', value: 1 },
-        { name: '10연차 (2700G, 10% 할인!)', value: 10 },
+        { name: '1회 소환', value: 1 },
+        { name: '10연차', value: 10 },
       ),
   )
 
-function rollGacha(_u?: string): GachaItem {
-  const _fortune = _u ? getUserFortune(_u) : null
-  const _gb = _fortune?.gacha_bonus ?? 0
-  const _g = _gb > 0
-  const roll = Math.random() * 100
-  let rarity: string
-
-  if (roll < 1 + _gb) rarity = 'mythic'
-  else if (roll < 5 + _gb * 1.5) rarity = 'legendary'
-  else if (roll < 15 + _gb * 1.2) rarity = 'epic'
-  else if (roll < 30 + _gb) rarity = 'rare'
-  else if (roll < 55) rarity = 'uncommon'
-  else rarity = 'common'
-
-  const pool = gachaPool.filter((i) => i.rarity === rarity)
-  return pick(pool)
-}
-
-// ── 픽뚫 (Pity) constants ──
-const PITY_THRESHOLD = 90 // 90연차 천장: 전설급 보장
-const PITY_GOLD_REFUND = 150 // 픽뚫 시 골드 반환량
-
-function rollWithPity(
-  userId: string,
-  guildId: string,
-): { item: GachaItem; pitied: boolean } {
-  const newCount = incrementGachaPity(userId, guildId)
-  if (newCount >= PITY_THRESHOLD) {
-    // Force legendary
-    const pool = gachaPool.filter((i) => i.rarity === 'legendary')
-    const item = pick(pool)
-    resetGachaPity(userId, guildId)
-    return { item, pitied: true }
-  }
-  const item = rollGacha(userId)
-  if (item.rarity === 'legendary' || item.rarity === 'mythic') {
-    resetGachaPity(userId, guildId)
-  }
-  return { item, pitied: false }
-}
-
 export async function execute(interaction: ChatInputCommandInteraction) {
   const user = interaction.user
-  const guildId = interaction.guildId!
+  const bannerType = interaction.options.getString('banner', true) as BannerType
   const count = interaction.options.getInteger('count') ?? 1
-  const cost = count === 10 ? 2700 : 300
 
-  const player = getOrCreatePlayer(user.id, guildId, user.username)
-
-  // Prevent concurrent gacha rolls
-  const userKey = `${user.id}:${guildId}`
+  const userKey = user.id
   if (rollingUsers.has(userKey)) {
     await interaction.reply({
-      content:
-        '🎰 이미 가챠를 돌리는 중입니다! 결과가 나올 때까지 기다려주세요.',
+      content: '🎰 이미 소환 중입니다! 잠시만 기다려주세요.',
       ephemeral: true,
     })
     return
   }
 
-  // HP=0 death check
-  if (isPlayerDead(user.id, guildId)) {
-    const deathGachaMessages = [
-      '💀 HP가 0입니다! 활동할 수 없습니다.\n`/heal`로 회복하거나 `/daily`로 보상을 받으세요.',
-      '💀 죽어서 가챠를 돌리면... 저승에서 씀 수 있나요?\n`/heal`로 부활하세요.',
-      '💀 죽은 사람의 돈을 쓰려는 것은 범죄입니다. (HP 0)\n`/heal`로 회복하세요.',
-      '💀 유언장에 "가챠 300G 환불해주세요" 라고 적을까요?\n`/heal`로 부활하세요.',
-      '💀 이승에서 못 뽑은 전설을 저승에서 뽑으려고요?\n`/heal`로 회복하세요.',
-      '💀 가챠 중독은 죽어서도 못 고치는군요...\n`/heal`로 부활하세요.',
-    ]
+  if (isPlayerDead(user.id, interaction.guildId!)) {
     await interaction.reply({
-      content: pick(deathGachaMessages),
+      content: '💀 HP가 0입니다! `/heal`로 회복하세요.',
       ephemeral: true,
     })
     return
   }
 
-  if (player.gold < cost) {
-    await interaction.reply({
-      content: `💰 골드가 부족합니다! (현재: ${player.gold}G / 필요: ${cost}G)\n\`/daily\`로 골드를 모으세요!`,
-      ephemeral: true,
-    })
-    return
+  // Check currency
+  const currency = getGachaCurrency(user.id)
+  const currencyField =
+    bannerType === 'standard' ? 'standard_pass' : 'fate_pass'
+  const currencyName = bannerType === 'standard' ? '별빛소환권' : '운명의소환권'
+  const currencyEmoji = bannerType === 'standard' ? '🎫' : '🌟'
+
+  if (currency[currencyField] < count) {
+    // Try to convert stellarite
+    const needed = count - currency[currencyField]
+    const stellariteCost =
+      needed *
+      (bannerType === 'standard' ? STELLARITE_PER_PASS : STELLARITE_PER_FATE)
+    if (currency.stellarite >= stellariteCost) {
+      spendCurrency(user.id, 'stellarite', stellariteCost)
+      if (bannerType === 'standard') addStandardPass(user.id, needed)
+      else addFatePass(user.id, needed)
+    } else {
+      await interaction.reply({
+        content:
+          `${currencyEmoji} ${currencyName}이(가) 부족합니다! (보유: ${currency[currencyField]}장, 성흔석: ${currency.stellarite}개)\n` +
+          `성흔석 ${STELLARITE_PER_PASS}개 = ${currencyName} 1장\n\`/daily\`로 성흔석을 모으세요!`,
+        ephemeral: true,
+      })
+      return
+    }
   }
 
+  // Spend currency
+  spendCurrency(user.id, currencyField, count)
   rollingUsers.add(userKey)
-  addGold(user.id, guildId, -cost)
 
-  if (count === 10) {
-    // ══════════ 10-pull gacha ══════════
-    const embed1 = new EmbedBuilder()
-      .setColor(0xffd700)
-      .setTitle('🎰 10연차 돌리는 중...')
-      .setDescription(
-        `> 🎰🎰🎰🎰🎰🎰🎰🎰🎰🎰\n\n**슬롯 10개가 동시에 돌아갑니다...!**`,
-      )
-    await interaction.reply({ embeds: [embed1] })
-    await sleep(2000)
+  try {
+    const bannerInfo =
+      bannerType !== 'standard' ? getActiveBanner(bannerType) : null
+    const bannerTitle =
+      bannerType === 'standard'
+        ? '🌟 일반 소환'
+        : bannerType === 'character'
+          ? `🔥 캐릭터 픽업 — ${bannerInfo ? (characterMap.get(bannerInfo.featured_id)?.name ?? '???') : '미설정'}`
+          : `⚔️ 무기 픽업 — ${bannerInfo ? (weaponMap.get(bannerInfo.featured_id)?.name ?? '???') : '미설정'}`
 
-    // Roll all 10
-    const items: GachaItem[] = []
-    const pitiedIndices: number[] = []
-    let totalPityRefund = 0
-    for (let i = 0; i < 10; i++) {
-      const { item, pitied } = rollWithPity(user.id, guildId)
-      items.push(item)
-      if (pitied) {
-        pitiedIndices.push(i)
-        totalPityRefund += PITY_GOLD_REFUND
-        addGold(user.id, guildId, PITY_GOLD_REFUND)
+    if (count === 10) {
+      // ══════════ 10-pull ══════════
+      const loadEmbed = new EmbedBuilder()
+        .setColor(0xffd700)
+        .setTitle(`${bannerTitle}`)
+        .setDescription('> ✨✨✨✨✨✨✨✨✨✨\n\n**10연차 소환 중...**')
+      await interaction.reply({ embeds: [loadEmbed] })
+      await sleep(2000)
+
+      const results: GachaResult[] = []
+      for (let i = 0; i < 10; i++) {
+        results.push(rollBanner(user.id, bannerType))
       }
-    }
 
-    // Add items to inventory
-    for (const item of items) {
-      addItem(user.id, {
-        item_name: item.name,
-        item_rarity: item.rarity,
-        item_emoji: item.emoji,
-        attack_bonus: item.attack,
-        defense_bonus: item.defense,
-        hp_bonus: item.hp,
-        crit_bonus: item.crit,
-      })
-    }
-
-    // Count by rarity
-    const rarityCounts: Record<string, number> = {}
-    for (const item of items) {
-      rarityCounts[item.rarity] = (rarityCounts[item.rarity] ?? 0) + 1
-    }
-
-    // Build result lines
-    const resultLines = items
-      .map((item, i) => {
-        const stats: string[] = []
-        if (item.attack > 0) stats.push(`⚔️+${item.attack}`)
-        if (item.defense > 0) stats.push(`🛡️+${item.defense}`)
-        if (item.hp > 0) stats.push(`❤️+${item.hp}`)
-        if (item.crit > 0) stats.push(`🎯+${(item.crit * 100).toFixed(0)}%`)
-        const statStr = stats.length > 0 ? ` (${stats.join(' ')})` : ''
-        const pityTag = pitiedIndices.includes(i) ? ' 🛡️픽뚫' : ''
-        return `${i + 1}. ${item.emoji} **${item.name}** ${rarityLabels[item.rarity]}${statStr}${pityTag}`
-      })
-      .join('\n')
-
-    // Check for titles
-    if (items.some((i) => i.rarity === 'mythic')) {
-      addTitle(user.id, guildId, '🦆 신화 수집가')
-    }
-
-    // Best rarity for embed color
-    const rarityOrder = [
-      'common',
-      'uncommon',
-      'rare',
-      'epic',
-      'legendary',
-      'mythic',
-    ]
-    const bestRarity = items.reduce((best, item) =>
-      rarityOrder.indexOf(item.rarity) > rarityOrder.indexOf(best.rarity)
-        ? item
-        : best,
-    )
-
-    // Glow animation
-    const embed2 = new EmbedBuilder()
-      .setColor(rarityColors[bestRarity.rarity])
-      .setTitle('🎰 10연차!')
-      .setDescription(
-        `> ✨✨✨ 빛이 쏟아진다...!\n\n*10개의 아이템이 나타나는 중...*`,
-      )
-    await interaction.editReply({ embeds: [embed2] })
-    await sleep(2000)
-
-    // Final result
-    const finalEmbed = new EmbedBuilder()
-      .setColor(rarityColors[bestRarity.rarity])
-      .setTitle('🎰 10연차 결과!')
-      .setDescription(resultLines)
-
-    // Summary line
-    const summaryParts: string[] = []
-    for (const r of rarityOrder.reverse()) {
-      if (rarityCounts[r]) {
-        summaryParts.push(`${rarityLabels[r]} ×${rarityCounts[r]}`)
+      // Add to account
+      const extraInfo: string[] = []
+      for (const r of results) {
+        extraInfo.push(addResultToAccount(user.id, r))
       }
+
+      // Build result
+      const bestRarity = Math.max(...results.map((r) => r.rarity))
+      const resultLines = results
+        .map((r, i) => {
+          const info = extraInfo[i]
+          return `${formatResult(r, i)} — *${info}*`
+        })
+        .join('\n')
+
+      // Count by rarity
+      const r5 = results.filter((r) => r.rarity === 5).length
+      const r4 = results.filter((r) => r.rarity === 4).length
+      const r3 = results.filter((r) => r.rarity === 3).length
+
+      const finalEmbed = new EmbedBuilder()
+        .setColor(starRarityColors[bestRarity] ?? 0x808080)
+        .setTitle(`${bannerTitle} — 10연차 결과!`)
+        .setDescription(resultLines)
+        .addFields({
+          name: '📊 등급 요약',
+          value:
+            [
+              r5 ? `⭐⭐⭐⭐⭐ ×${r5}` : '',
+              r4 ? `⭐⭐⭐⭐ ×${r4}` : '',
+              r3 ? `⭐⭐⭐ ×${r3}` : '',
+            ]
+              .filter(Boolean)
+              .join(' | ') || '없음',
+        })
+
+      if (r5 > 0) {
+        finalEmbed.addFields({
+          name: '🎊 대박!',
+          value: `**5성이 ${r5}개 나왔습니다!!!**`,
+        })
+      } else if (r4 === 0) {
+        finalEmbed.addFields({
+          name: '😭',
+          value: '10연차에서 4성도 못 뽑았습니다... 위로합니다.',
+        })
+      }
+
+      const updatedCurrency = getGachaCurrency(user.id)
+      const pityInfo = getBannerPity(user.id, bannerType)
+      finalEmbed
+        .setFooter({
+          text: `성흔석: ${updatedCurrency.stellarite} | ${currencyName}: ${updatedCurrency[currencyField]}장 | 천장: ${pityInfo.pity_count}/${HARD_PITY}${pityInfo.guaranteed ? ' (확정)' : ''}`,
+        })
+        .setTimestamp()
+
+      // Dramatic reveal
+      const glowEmbed = new EmbedBuilder()
+        .setColor(starRarityColors[bestRarity] ?? 0xffd700)
+        .setTitle(`${bannerTitle}`)
+        .setDescription(
+          bestRarity === 5
+            ? '> 🌟🌟🌟 금빛이 쏟아진다...!'
+            : bestRarity === 4
+              ? '> 💜💜💜 보랏빛이 빛난다...!'
+              : '> ⬜⬜⬜ ...',
+        )
+      await interaction.editReply({ embeds: [glowEmbed] })
+      await sleep(2000)
+
+      await interaction.editReply({ embeds: [finalEmbed] })
+    } else {
+      // ══════════ Single pull ══════════
+      const loadEmbed = new EmbedBuilder()
+        .setColor(0x2c2f33)
+        .setTitle(`${bannerTitle}`)
+        .setDescription('> 🎰 🎲 🃏 ✨\n\n**소환 중...**')
+      await interaction.reply({ embeds: [loadEmbed] })
+      await sleep(1500)
+
+      const result = rollBanner(user.id, bannerType)
+      const info = addResultToAccount(user.id, result)
+
+      // Glow
+      const glowEmbed = new EmbedBuilder()
+        .setColor(starRarityColors[result.rarity] ?? 0x808080)
+        .setTitle(`${bannerTitle}`)
+        .setDescription(
+          result.rarity === 5
+            ? '> 🌟🌟🌟 금빛이 터진다...!'
+            : result.rarity === 4
+              ? '> 💜💜💜 보라색 빛이...!'
+              : '> ⬜⬜⬜ ...',
+        )
+      await interaction.editReply({ embeds: [glowEmbed] })
+      await sleep(1500)
+
+      // Reveal
+      const stars = '⭐'.repeat(result.rarity)
+      const desc = [
+        `${result.emoji} **${result.name}**`,
+        `등급: ${stars} ${starRarityLabels[result.rarity] ?? ''}`,
+        result.isFeatured ? '**🔥 픽업 대상!**' : '',
+        result.won5050 === false
+          ? '❌ **50/50 실패 (픽뚫)** — 다음 5성은 확정!'
+          : '',
+        result.won5050 === true ? '✅ **50/50 성공!**' : '',
+        '',
+        `📦 ${info}`,
+      ]
+        .filter(Boolean)
+        .join('\n')
+
+      const finalEmbed = new EmbedBuilder()
+        .setColor(starRarityColors[result.rarity] ?? 0x808080)
+        .setTitle(`${bannerTitle} — 결과!`)
+        .setDescription(desc)
+
+      if (result.rarity === 5) {
+        finalEmbed.addFields({
+          name: '🎊 축하합니다!',
+          value: `**5성 ${result.type === 'character' ? '캐릭터' : '무기'} 획득!**`,
+        })
+      } else if (result.rarity === 3) {
+        const sadMsgs = [
+          '🗑️ 이거 분해하면 뭐가 나오나요?',
+          '💀 성흔석이 아깝다...',
+          '📉 소환은 도박이고 도박은 패가망신입니다.',
+          '🤡 확률은 거짓말을 하지 않습니다.',
+          '🪦 여기 당신의 성흔석이 잠들어 있습니다.',
+        ]
+        finalEmbed.addFields({ name: '😢', value: pick(sadMsgs) })
+      }
+
+      const updatedCurrency = getGachaCurrency(user.id)
+      const pityInfo = getBannerPity(user.id, bannerType)
+      finalEmbed
+        .setFooter({
+          text: `성흔석: ${updatedCurrency.stellarite} | ${currencyName}: ${updatedCurrency[currencyField]}장 | 천장: ${pityInfo.pity_count}/${HARD_PITY}${pityInfo.guaranteed ? ' (확정)' : ''}`,
+        })
+        .setTimestamp()
+
+      await interaction.editReply({ embeds: [finalEmbed] })
     }
-    finalEmbed.addFields({
-      name: '📊 등급 요약',
-      value: summaryParts.join(' | ') || '없음',
-    })
-
-    if (items.some((i) => i.rarity === 'mythic')) {
-      finalEmbed.addFields({
-        name: '🎊 대박!!!',
-        value: '🌟 **신화급 아이템이 10연차에서 나왔습니다!!!**',
-      })
-    } else if (items.some((i) => i.rarity === 'legendary')) {
-      finalEmbed.addFields({
-        name: '🎊 대박!',
-        value: '✨ **전설급 아이템 발견!** 축하합니다!',
-      })
-    } else if (items.every((i) => i.rarity === 'common')) {
-      finalEmbed.addFields({
-        name: '😭',
-        value: '2700G로 꽝 10개를 뽑았습니다. 축하합니다... 아니, 위로합니다.',
-      })
-    }
-
-    if (pitiedIndices.length > 0) {
-      finalEmbed.addFields({
-        name: '🛡️ 픽뚫 발동!',
-        value: `**${pitiedIndices.length}회 천장(${PITY_THRESHOLD}연차) 도달!** 전설급 보장 + ${totalPityRefund}G 반환`,
-      })
-    }
-
-    const currentPity10 = getGachaPity(user.id, guildId)
-    finalEmbed
-      .setFooter({
-        text: `잔여 골드: ${player.gold - cost + totalPityRefund}G | 픽뚫: ${currentPity10}/${PITY_THRESHOLD} | 비용: ${cost}G (10% 할인)`,
-      })
-      .setTimestamp()
-
-    await interaction.editReply({ embeds: [finalEmbed] })
+  } finally {
     rollingUsers.delete(userKey)
-    return
   }
-
-  // ══════════ Single pull (original) ══════════
-  const { item, pitied } = rollWithPity(user.id, guildId)
-  if (pitied) {
-    addGold(user.id, guildId, PITY_GOLD_REFUND)
-  }
-
-  // ── Phase 1: 돌리는 중 ──
-  const embed1 = new EmbedBuilder()
-    .setColor(0x2c2f33)
-    .setTitle('🎰 가챠 돌리는 중...')
-    .setDescription(`> 🎰 🎲 🃏 ✨\n\n` + `**슬롯이 돌아가고 있습니다...**`)
-  await interaction.reply({ embeds: [embed1] })
-
-  await sleep(1500)
-
-  // ── Phase 2: 빛이 난다 ──
-  const glowColor =
-    item.rarity === 'mythic' || item.rarity === 'legendary'
-      ? 0xffd700
-      : item.rarity === 'epic'
-        ? 0x9b59b6
-        : item.rarity === 'rare'
-          ? 0x3498db
-          : 0x808080
-
-  const glowEmoji =
-    item.rarity === 'mythic'
-      ? '🌟🌟🌟'
-      : item.rarity === 'legendary'
-        ? '✨✨✨'
-        : item.rarity === 'epic'
-          ? '💜💜💜'
-          : item.rarity === 'rare'
-            ? '💙💙💙'
-            : item.rarity === 'uncommon'
-              ? '💚💚💚'
-              : '⬜⬜⬜'
-
-  const embed2 = new EmbedBuilder()
-    .setColor(glowColor)
-    .setTitle('🎰 가챠 돌리는 중...')
-    .setDescription(`> ${glowEmoji}\n\n` + `**뭔가 빛이 나기 시작합니다...!**`)
-  await interaction.editReply({ embeds: [embed2] })
-
-  await sleep(1500)
-
-  // ── Phase 3: 등급 공개 ──
-  const embed3 = new EmbedBuilder()
-    .setColor(rarityColors[item.rarity])
-    .setTitle('🎰 가챠!')
-    .setDescription(
-      `> 등급이 보인다...!\n\n## ${rarityLabels[item.rarity]}\n\n*아이템이 나타나는 중...*`,
-    )
-  await interaction.editReply({ embeds: [embed3] })
-
-  await sleep(2000)
-
-  // ── Phase 4: 최종 결과 ──
-  addItem(user.id, {
-    item_name: item.name,
-    item_rarity: item.rarity,
-    item_emoji: item.emoji,
-    attack_bonus: item.attack,
-    defense_bonus: item.defense,
-    hp_bonus: item.hp,
-    crit_bonus: item.crit,
-  })
-
-  const stats: string[] = []
-  if (item.attack > 0) stats.push(`⚔️ 공격력 +${item.attack}`)
-  if (item.defense > 0) stats.push(`🛡️ 방어력 +${item.defense}`)
-  if (item.hp > 0) stats.push(`❤️ HP +${item.hp}`)
-  if (item.crit > 0) stats.push(`🎯 크리티컬 +${(item.crit * 100).toFixed(0)}%`)
-
-  const finalEmbed = new EmbedBuilder()
-    .setColor(rarityColors[item.rarity])
-    .setTitle('🎰 가챠 결과!')
-    .setDescription(
-      `${item.emoji} **${item.name}**\n` +
-        `등급: ${rarityLabels[item.rarity]}\n\n` +
-        (stats.length > 0 ? stats.join(' | ') : '특수 능력 없음'),
-    )
-
-  if (item.rarity === 'legendary' || item.rarity === 'mythic') {
-    finalEmbed.addFields({
-      name: '🎊 대박!!!',
-      value:
-        item.rarity === 'mythic'
-          ? '🌟 **신화급 아이템 획득!!!** 서버 전체가 부러워합니다!'
-          : '✨ **전설급 아이템 획득!** 축하합니다!',
-    })
-    if (item.rarity === 'mythic') {
-      addTitle(user.id, guildId, '🦆 신화 수집가')
-    }
-  }
-
-  if (pitied) {
-    finalEmbed.addFields({
-      name: '🛡️ 픽뚫 발동!',
-      value: `**${PITY_THRESHOLD}연차 천장 도달!** 전설급 보장 + ${PITY_GOLD_REFUND}G 반환`,
-    })
-  }
-
-  if (item.rarity === 'common') {
-    const sadMessages = [
-      '😐 ...뭐, 세상이 다 그런 거지.',
-      '🗑️ 이거 환불 안 되나요?',
-      '💀 300G가 아깝다...',
-      '😭 다음에는 전설이 나올 거야... 아마...',
-      '📉 가챠는 도박이고 도박은 패가망신입니다.',
-      '🎰 300G로 밥을 사먹었으면 배라도 불렀을 텐데...',
-      '🪙 이 아이템의 시가는 약 3G입니다. 축하합니다.',
-      '💸 매몰비용의 오류에 빠지지 마세요. 그만 돌리세요.',
-      '🤡 확률은 거짓말을 하지 않습니다. 당신이 운이 없을 뿐.',
-      '📱 이 확률은 로또보다 높은데요... 그래도 꽝은 꽝입니다.',
-      '🕳️ 가챠는 함정이고 당신은 함정에 빠졌습니다. 축하합니다.',
-      '🏧 300G면 편의점 삼각김밥 100개 사먹었습니다.',
-      '💳 "한 번만 더..." 라고 말한 지 10번째입니다.',
-      '🪦 여기 300G가 잠들어 있습니다. R.I.P.',
-      '🧾 영수증 출력하시겠습니까? (마음의 상처 포함)',
-    ]
-    finalEmbed.addFields({
-      name: '😢',
-      value: pick(sadMessages),
-    })
-  }
-
-  const currentPity = getGachaPity(user.id, guildId)
-  finalEmbed.setFooter({
-    text: `잔여 골드: ${player.gold - cost + (pitied ? PITY_GOLD_REFUND : 0)}G | 픽뚫: ${currentPity}/${PITY_THRESHOLD} | 풀: ${gachaPool.length}종`,
-  })
-  finalEmbed.setTimestamp()
-
-  await interaction.editReply({ embeds: [finalEmbed] })
-  rollingUsers.delete(userKey)
 }
