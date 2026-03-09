@@ -63,7 +63,7 @@ export async function execute(interaction: ChatInputCommandInteraction) {
     .addFields(
       { name: '💰 골드', value: `+${goldAmount}G`, inline: true },
       { name: '❤️ 회복', value: `HP +${healAmount}`, inline: true },
-      { name: '💎 성흔석', value: `+${stellariteAmount}`, inline: true },
+      { name: '💎 성광석', value: `+${stellariteAmount}`, inline: true },
     )
 
   if (bonusGold > 0) {
@@ -76,7 +76,7 @@ export async function execute(interaction: ChatInputCommandInteraction) {
 
   if (gachaTicket) {
     embed.addFields({
-      name: '🎫 별빛소환권!',
+      name: '🎫 별빛의 인연!',
       value: '+1장 획득! `/gacha`로 사용하세요!',
       inline: false,
     })
@@ -85,7 +85,7 @@ export async function execute(interaction: ChatInputCommandInteraction) {
 
   if (bonusPass) {
     embed.addFields({
-      name: '🌟 보너스 별빛소환권!',
+      name: '🌟 보너스 별빛의 인연!',
       value: '+1장 추가 획득! (20% 확률)',
       inline: false,
     })

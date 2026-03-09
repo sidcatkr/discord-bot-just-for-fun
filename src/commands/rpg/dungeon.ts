@@ -333,7 +333,7 @@ export async function execute(interaction: ChatInputCommandInteraction) {
         addMaterial(userId, 'weapon_xp_material', earnedWpnXp)
 
       const rewardLines: string[] = [
-        `💎 성흔석: +${earnedStellarite}`,
+        `💎 성광석: +${earnedStellarite}`,
         `🪙 골드: +${earnedGold}`,
       ]
       if (earnedCharXp > 0)
@@ -367,7 +367,7 @@ export async function execute(interaction: ChatInputCommandInteraction) {
       let fateLine = ''
       if (chance(rewards.fatePassChance)) {
         addFatePass(userId, 1)
-        fateLine = '\n🌟 **운명의 소환권 드롭!** +1'
+        fateLine = '\n🌟 **운명의 인연 드롭!** +1'
       }
 
       const winEmbed = new EmbedBuilder()

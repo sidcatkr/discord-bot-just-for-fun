@@ -168,9 +168,9 @@ export const data = new SlashCommandBuilder()
           .setDescription('재화 종류')
           .setRequired(true)
           .addChoices(
-            { name: '💎 성흔석', value: 'stellarite' },
-            { name: '🎫 별빛소환권', value: 'standard_pass' },
-            { name: '🌟 운명의소환권', value: 'fate_pass' },
+            { name: '💎 성광석', value: 'stellarite' },
+            { name: '🎫 별빛의 인연', value: 'standard_pass' },
+            { name: '🌟 운명의 인연', value: 'fate_pass' },
           ),
       )
       .addIntegerOption((opt) =>
@@ -640,9 +640,9 @@ export async function execute(interaction: ChatInputCommandInteraction) {
     else addFatePass(target.id, amount)
 
     const labels: Record<string, string> = {
-      stellarite: '💎 성흔석',
-      standard_pass: '🎫 별빛소환권',
-      fate_pass: '🌟 운명의소환권',
+      stellarite: '💎 성광석',
+      standard_pass: '🎫 별빛의 인연',
+      fate_pass: '🌟 운명의 인연',
     }
     const cur = getGachaCurrency(target.id)
 
@@ -653,7 +653,7 @@ export async function execute(interaction: ChatInputCommandInteraction) {
         `**대상:** ${target}\n` +
           `**항목:** ${labels[type]}\n` +
           `**지급량:** +${amount}\n` +
-          `**현재 잔고:** 💎${cur.stellarite} | 🎫${cur.standard_pass} | 🌟${cur.fate_pass}`,
+          `**현재 잔고:** 💎 성광석 ${cur.stellarite} | 🎫 별빛의 인연 ${cur.standard_pass} | 🌟 운명의 인연 ${cur.fate_pass}`,
       )
       .setTimestamp()
 

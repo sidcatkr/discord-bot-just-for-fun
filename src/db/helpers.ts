@@ -32,12 +32,13 @@ export function getOrCreatePlayer(
   if (existing) return existing
 
   db.prepare(
-    `INSERT INTO players (user_id, guild_id, username) VALUES (?, ?, ?)`,
+    `INSERT INTO players (user_id, guild_id, username) VALUES (?, ?, ?)
+     ON CONFLICT(user_id) DO UPDATE SET guild_id = excluded.guild_id, username = excluded.username`,
   ).run(userId, guildId, username)
 
   return db
-    .prepare('SELECT * FROM players WHERE user_id = ? AND guild_id = ?')
-    .get(userId, guildId) as Player
+    .prepare('SELECT * FROM players WHERE user_id = ?')
+    .get(userId) as Player
 }
 
 export function updatePlayer(

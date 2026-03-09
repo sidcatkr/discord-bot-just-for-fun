@@ -383,9 +383,9 @@ export const data = new SlashCommandBuilder()
       .setDescription('배너 선택')
       .setRequired(true)
       .addChoices(
-        { name: '🌟 일반 소환 (별빛소환권)', value: 'standard' },
-        { name: '🔥 캐릭터 픽업 (운명의소환권)', value: 'character' },
-        { name: '⚔️ 무기 픽업 (운명의소환권)', value: 'weapon' },
+        { name: '🌟 일반 소환 (별빛의 인연)', value: 'standard' },
+        { name: '🔥 캐릭터 픽업 (운명의 인연)', value: 'character' },
+        { name: '⚔️ 무기 픽업 (운명의 인연)', value: 'weapon' },
       ),
   )
   .addIntegerOption((opt) =>
@@ -424,7 +424,7 @@ export async function execute(interaction: ChatInputCommandInteraction) {
   const currency = getGachaCurrency(user.id)
   const currencyField =
     bannerType === 'standard' ? 'standard_pass' : 'fate_pass'
-  const currencyName = bannerType === 'standard' ? '별빛소환권' : '운명의소환권'
+  const currencyName = bannerType === 'standard' ? '별빛의 인연' : '운명의 인연'
   const currencyEmoji = bannerType === 'standard' ? '🎫' : '🌟'
 
   if (currency[currencyField] < count) {
@@ -440,8 +440,8 @@ export async function execute(interaction: ChatInputCommandInteraction) {
     } else {
       await interaction.reply({
         content:
-          `${currencyEmoji} ${currencyName}이(가) 부족합니다! (보유: ${currency[currencyField]}장, 성흔석: ${currency.stellarite}개)\n` +
-          `성흔석 ${STELLARITE_PER_PASS}개 = ${currencyName} 1장\n\`/daily\`로 성흔석을 모으세요!`,
+          `${currencyEmoji} ${currencyName}이(가) 부족합니다! (보유: ${currency[currencyField]}장, 성광석: ${currency.stellarite}개)\n` +
+          `성광석 ${STELLARITE_PER_PASS}개 = ${currencyName} 1장\n\`/daily\`로 성광석을 모으세요!`,
         ephemeral: true,
       })
       return
@@ -528,7 +528,7 @@ export async function execute(interaction: ChatInputCommandInteraction) {
       const pityInfo = getBannerPity(user.id, bannerType)
       finalEmbed
         .setFooter({
-          text: `성흔석: ${updatedCurrency.stellarite} | ${currencyName}: ${updatedCurrency[currencyField]}장 | 천장: ${pityInfo.pity_count}/${HARD_PITY}${pityInfo.guaranteed ? ' (확정)' : ''}`,
+          text: `성광석: ${updatedCurrency.stellarite} | ${currencyName}: ${updatedCurrency[currencyField]}장 | 천장: ${pityInfo.pity_count}/${HARD_PITY}${pityInfo.guaranteed ? ' (확정)' : ''}`,
         })
         .setTimestamp()
 
@@ -602,10 +602,10 @@ export async function execute(interaction: ChatInputCommandInteraction) {
       } else if (result.rarity === 3) {
         const sadMsgs = [
           '🗑️ 이거 분해하면 뭐가 나오나요?',
-          '💀 성흔석이 아깝다...',
+          '💀 성광석이 아깝다...',
           '📉 소환은 도박이고 도박은 패가망신입니다.',
           '🤡 확률은 거짓말을 하지 않습니다.',
-          '🪦 여기 당신의 성흔석이 잠들어 있습니다.',
+          '🪦 여기 당신의 성광석이 잠들어 있습니다.',
         ]
         finalEmbed.addFields({ name: '😢', value: pick(sadMsgs) })
       }
@@ -614,7 +614,7 @@ export async function execute(interaction: ChatInputCommandInteraction) {
       const pityInfo = getBannerPity(user.id, bannerType)
       finalEmbed
         .setFooter({
-          text: `성흔석: ${updatedCurrency.stellarite} | ${currencyName}: ${updatedCurrency[currencyField]}장 | 천장: ${pityInfo.pity_count}/${HARD_PITY}${pityInfo.guaranteed ? ' (확정)' : ''}`,
+          text: `성광석: ${updatedCurrency.stellarite} | ${currencyName}: ${updatedCurrency[currencyField]}장 | 천장: ${pityInfo.pity_count}/${HARD_PITY}${pityInfo.guaranteed ? ' (확정)' : ''}`,
         })
         .setTimestamp()
 
