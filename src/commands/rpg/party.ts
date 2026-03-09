@@ -22,6 +22,7 @@ import {
   starRarityLabels,
 } from '../../data/characters.js'
 import { weaponMap } from '../../data/weapons.js'
+import { getPartySynergies } from '../../data/combat-engine.js'
 
 export const data = new SlashCommandBuilder()
   .setName('party')
@@ -126,6 +127,17 @@ export async function execute(interaction: ChatInputCommandInteraction) {
           ` ${elementEmoji[template.element]}${pathEmoji[template.path]}` +
           `\n  ❤️${stats.hp} ⚔️${stats.atk} 🛡️${stats.def} 💨${stats.spd}` +
           ` | 각성 E${owned.awakening} | 무기: ${weaponName}`,
+      )
+    }
+
+    // Synergy display
+    const synergies = getPartySynergies(partyIds)
+    if (synergies.length > 0) {
+      lines.push(
+        `\n**✨ 활성 시너지:**\n` +
+          synergies
+            .map((s) => `${s.emoji} **${s.name}** — ${s.description}`)
+            .join('\n'),
       )
     }
 

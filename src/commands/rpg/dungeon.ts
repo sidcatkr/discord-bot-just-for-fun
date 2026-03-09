@@ -31,8 +31,7 @@ import { weaponMap } from '../../data/weapons.js'
 import {
   dungeons,
   dungeonMap,
-  generateDungeonEnemies,
-  type DungeonEnemy,
+  generateEnhancedEnemies,
 } from '../../data/dungeon-data.js'
 import {
   generateRelic,
@@ -41,6 +40,15 @@ import {
   slotLabels,
   mainStatLabels,
 } from '../../data/relics.js'
+import {
+  buildPlayerCombatant,
+  buildEnemyCombatant,
+  runAutoBattle,
+  getTeamStatus,
+  getPartySynergies,
+  applySynergies,
+  formatHPBar,
+} from '../../data/combat-engine.js'
 
 export const data = new SlashCommandBuilder()
   .setName('dungeon')
@@ -69,121 +77,6 @@ export const data = new SlashCommandBuilder()
   .addSubcommand((sub) =>
     sub.setName('stamina').setDescription('현재 스태미나 확인'),
   )
-
-// Simple auto-battle for dungeon PvE
-function simulateDungeonBattle(
-  partyChars: {
-    name: string
-    emoji: string
-    hp: number
-    atk: number
-    def: number
-    spd: number
-    element: string
-  }[],
-  enemies: DungeonEnemy[],
-): { won: boolean; log: string[]; survivingParty: number } {
-  const log: string[] = []
-
-  // Clone HP pools
-  const partyHP = partyChars.map((c) => c.hp)
-  const enemyHP = enemies.map((e) => e.hp)
-
-  const MAX_ROUNDS = 15
-
-  for (let round = 1; round <= MAX_ROUNDS; round++) {
-    // All participants act in SPD order
-    const actors: { index: number; side: 'party' | 'enemy'; spd: number }[] = []
-    partyChars.forEach((c, i) => {
-      if (partyHP[i] > 0) actors.push({ index: i, side: 'party', spd: c.spd })
-    })
-    enemies.forEach((e, i) => {
-      if (enemyHP[i] > 0) actors.push({ index: i, side: 'enemy', spd: e.spd })
-    })
-    actors.sort((a, b) => b.spd - a.spd)
-
-    for (const actor of actors) {
-      if (actor.side === 'party') {
-        if (partyHP[actor.index] <= 0) continue
-        // Attack random alive enemy
-        const aliveEnemies = enemies
-          .map((e, i) => i)
-          .filter((i) => enemyHP[i] > 0)
-        if (aliveEnemies.length === 0) break
-        const targetIdx = pick(aliveEnemies)
-        const pc = partyChars[actor.index]
-        const dmg = Math.max(
-          1,
-          Math.floor(
-            pc.atk * (1.2 + Math.random() * 0.4) - enemies[targetIdx].def * 0.5,
-          ),
-        )
-        enemyHP[targetIdx] = Math.max(0, enemyHP[targetIdx] - dmg)
-        if (round <= 3 || enemyHP[targetIdx] === 0) {
-          log.push(
-            `${pc.emoji} ${pc.name} → ${enemies[targetIdx].emoji} ${enemies[targetIdx].name}: ${dmg} 피해${enemyHP[targetIdx] === 0 ? ' 💀처치!' : ''}`,
-          )
-        }
-      } else {
-        if (enemyHP[actor.index] <= 0) continue
-        const aliveParty = partyChars
-          .map((c, i) => i)
-          .filter((i) => partyHP[i] > 0)
-        if (aliveParty.length === 0) break
-        const targetIdx = pick(aliveParty)
-        const enemy = enemies[actor.index]
-        const dmg = Math.max(
-          1,
-          Math.floor(
-            enemy.atk * (1 + Math.random() * 0.3) -
-              partyChars[targetIdx].def * 0.5,
-          ),
-        )
-        partyHP[targetIdx] = Math.max(0, partyHP[targetIdx] - dmg)
-        if (round <= 3 || partyHP[targetIdx] === 0) {
-          log.push(
-            `${enemy.emoji} ${enemy.name} → ${partyChars[targetIdx].emoji} ${partyChars[targetIdx].name}: ${dmg} 피해${partyHP[targetIdx] === 0 ? ' 💀전사!' : ''}`,
-          )
-        }
-      }
-
-      // Check end conditions
-      if (enemyHP.every((h) => h === 0)) {
-        log.push('🎉 **모든 적을 처치했습니다!**')
-        return {
-          won: true,
-          log,
-          survivingParty: partyHP.filter((h) => h > 0).length,
-        }
-      }
-      if (partyHP.every((h) => h === 0)) {
-        log.push('💀 **파티가 전멸했습니다...**')
-        return { won: false, log, survivingParty: 0 }
-      }
-    }
-
-    if (round === 3 && MAX_ROUNDS > 3) {
-      log.push(`*... ${MAX_ROUNDS - 3}라운드 더 전투 중 ...*`)
-    }
-  }
-
-  // Timed out — partial victory based on remaining enemies
-  const remainingEnemies = enemyHP.filter((h) => h > 0).length
-  if (remainingEnemies < enemies.length / 2) {
-    log.push('⏰ **시간 초과! 남은 적을 간신히 처리했습니다.**')
-    return {
-      won: true,
-      log,
-      survivingParty: partyHP.filter((h) => h > 0).length,
-    }
-  }
-  log.push('⏰ **시간 초과! 퇴각합니다...**')
-  return {
-    won: false,
-    log,
-    survivingParty: partyHP.filter((h) => h > 0).length,
-  }
-}
 
 export async function autocomplete(interaction: AutocompleteInteraction) {
   const focused = interaction.options.getFocused(true)
@@ -272,48 +165,12 @@ export async function execute(interaction: ChatInputCommandInteraction) {
       return
     }
 
-    // Build party stats
-    const partyChars = partyIds
-      .map((id) => {
-        const owned = getOwnedCharacter(userId, id)
-        const template = characterMap.get(id)
-        if (!owned || !template) return null
+    // Build party combatants using combat engine
+    const team1 = partyIds
+      .map((id) => buildPlayerCombatant(userId, id, 1))
+      .filter(Boolean) as import('../../data/combat-engine.js').Combatant[]
 
-        const stats = getCharacterStats(template, owned.level)
-        const weapon = getWeaponEquippedBy(userId, id)
-        let bonusAtk = 0,
-          bonusHP = 0,
-          bonusDef = 0
-        if (weapon) {
-          const wt = weaponMap.get(weapon.weapon_id)
-          if (wt) {
-            bonusAtk += wt.baseATK
-            bonusHP += wt.baseHP
-            bonusDef += wt.baseDEF
-          }
-        }
-
-        return {
-          name: template.name,
-          emoji: template.emoji,
-          hp: stats.hp + bonusHP,
-          atk: stats.atk + bonusAtk,
-          def: stats.def + bonusDef,
-          spd: stats.spd,
-          element: template.element,
-        }
-      })
-      .filter(Boolean) as {
-      name: string
-      emoji: string
-      hp: number
-      atk: number
-      def: number
-      spd: number
-      element: string
-    }[]
-
-    if (partyChars.length === 0) {
+    if (team1.length === 0) {
       await interaction.reply({
         content: '❌ 파티에 유효한 캐릭터가 없습니다!',
         ephemeral: true,
@@ -321,25 +178,42 @@ export async function execute(interaction: ChatInputCommandInteraction) {
       return
     }
 
+    // Apply party synergies
+    const synergies = getPartySynergies(partyIds)
+    applySynergies(team1, synergies)
+
     spendStamina(userId, diff.staminaCost)
 
-    // Generate enemies
-    const enemies = generateDungeonEnemies(difficulty)
+    // Generate enemies using enhanced system
+    const enemyDefs = generateEnhancedEnemies(difficulty)
+    const team2 = enemyDefs.map((e, i) => buildEnemyCombatant(e, i))
 
     // Show entering
+    const synergyText =
+      synergies.length > 0
+        ? `\n**시너지:** ${synergies.map((s) => `${s.emoji} ${s.name}`).join(', ')}`
+        : ''
     const enterEmbed = new EmbedBuilder()
       .setColor(0xe74c3c)
       .setTitle(`${dungeon.emoji} ${dungeon.name} — ${diff.name}`)
       .setDescription(
-        `⚔️ 전투 시작!\n\n**파티:** ${partyChars.map((c) => `${c.emoji}${c.name}`).join(' ')}\n**적:** ${enemies.map((e) => `${e.emoji}${e.name}`).join(' ')}`,
+        `⚔️ 전투 시작!\n\n` +
+          `**파티:** ${team1.map((c) => `${c.emoji}${c.name}(Lv.${Math.floor((c.stats.atk - 800) / 13 + 1)})`).join(' ')}` +
+          synergyText +
+          `\n**적:** ${team2.map((e) => `${e.emoji}${e.name}`).join(' ')}` +
+          `\n\n> 📊 추천 전투력: **${diff.recommendedPower}**`,
       )
     await interaction.reply({ embeds: [enterEmbed] })
     await sleep(2000)
 
-    // Simulate battle
-    const result = simulateDungeonBattle(partyChars, enemies)
+    // Run auto-battle using combat engine
+    const { state, fullLog } = runAutoBattle(team1, team2, 40)
+    const won = state.winner === 1
+    const survivingParty = state.combatants.filter(
+      (c) => c.team === 1 && c.isAlive,
+    ).length
 
-    if (result.won) {
+    if (won) {
       // Calculate rewards
       const rewards = diff.rewards
       const earnedStellarite = random(
@@ -399,11 +273,11 @@ export async function execute(interaction: ChatInputCommandInteraction) {
         .setColor(0x57f287)
         .setTitle(`${dungeon.emoji} ${dungeon.name} — 클리어!`)
         .setDescription(
-          `${result.log.join('\n')}\n\n` +
+          `${fullLog.join('\n')}\n\n` +
             `**보상:**\n${rewardLines.join('\n')}${relicLine}${fateLine}`,
         )
         .setFooter({
-          text: `⚡ 스태미나 -${diff.staminaCost} | 생존 ${result.survivingParty}/${partyChars.length}`,
+          text: `⚡ 스태미나 -${diff.staminaCost} | 생존 ${survivingParty}/${team1.length}`,
         })
         .setTimestamp()
 
@@ -412,7 +286,10 @@ export async function execute(interaction: ChatInputCommandInteraction) {
       const loseEmbed = new EmbedBuilder()
         .setColor(0xe74c3c)
         .setTitle(`${dungeon.emoji} ${dungeon.name} — 실패...`)
-        .setDescription(result.log.join('\n'))
+        .setDescription(
+          fullLog.join('\n') +
+            '\n\n💡 **팁:** 캐릭터를 레벨업하고, 무기와 유물을 장착하여 전투력을 높이세요!',
+        )
         .setFooter({
           text: `⚡ 스태미나 -${diff.staminaCost} (돌려받지 못합니다)`,
         })

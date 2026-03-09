@@ -43,12 +43,13 @@ function makeDifficulties(
   fateBase: number,
 ): DungeonDifficulty[] {
   const diffNames = ['쉬움', '보통', '어려움', '매우 어려움', '악몽', '절멸']
+  const powerMults = [1, 1.8, 2.8, 4.0, 5.5, 7.5] // Match enemy scaling
   return diffNames.map((name, i) => {
     const mult = 1 + i * 0.5
     return {
       level: i + 1,
       name,
-      recommendedPower: Math.floor(basePower * mult),
+      recommendedPower: Math.floor(basePower * powerMults[i]),
       staminaCost: baseStamina + i * 5,
       rewards: {
         stellariteMin: Math.floor(baseRewards.stellariteMin * mult),
@@ -277,33 +278,282 @@ export interface DungeonEnemy {
   spd: number
 }
 
-export function generateDungeonEnemies(difficulty: number): DungeonEnemy[] {
-  const names = [
-    { name: '그림자 병사', emoji: '👤' },
-    { name: '타락한 기사', emoji: '⚔️' },
-    { name: '어둠 마법사', emoji: '🧙' },
-    { name: '저주받은 골렘', emoji: '🗿' },
-    { name: '독 전갈', emoji: '🦂' },
-    { name: '불꽃 정령', emoji: '🔥' },
-    { name: '얼음 요정', emoji: '❄️' },
-    { name: '번개 늑대', emoji: '🐺' },
-    { name: '바람 요소', emoji: '🌪️' },
-    { name: '심연 수호자', emoji: '🌑' },
-  ]
+import type { Element, SkillEffect, SkillTarget } from './characters.js'
+import type { EnemyDef } from './combat-engine.js'
 
-  const count = Math.min(4, 2 + Math.floor(difficulty / 2))
-  const mult = 1 + (difficulty - 1) * 0.4
-  const enemies: DungeonEnemy[] = []
+// ── Enhanced enemy templates with skills ─────────────────
+
+interface EnemyTemplate {
+  name: string
+  emoji: string
+  element: Element
+  role: 'dps' | 'tank' | 'support' | 'boss'
+  baseHP: number
+  baseATK: number
+  baseDEF: number
+  baseSPD: number
+  basicMult: number
+  skillMult: number
+  skillTarget: SkillTarget
+  skillEffects: SkillEffect[]
+  ultMult: number
+  ultTarget: SkillTarget
+  ultCost: number
+}
+
+const enemyTemplates: EnemyTemplate[] = [
+  // DPS enemies
+  {
+    name: '그림자 암살자',
+    emoji: '🗡️',
+    element: 'physical',
+    role: 'dps',
+    baseHP: 2800,
+    baseATK: 750,
+    baseDEF: 320,
+    baseSPD: 108,
+    basicMult: 70,
+    skillMult: 140,
+    skillTarget: 'single',
+    skillEffects: [{ type: 'bleed', value: 20, duration: 2, chance: 60 }],
+    ultMult: 280,
+    ultTarget: 'single',
+    ultCost: 100,
+  },
+  {
+    name: '화염 마도사',
+    emoji: '🔥',
+    element: 'fire',
+    role: 'dps',
+    baseHP: 2400,
+    baseATK: 820,
+    baseDEF: 280,
+    baseSPD: 102,
+    basicMult: 65,
+    skillMult: 110,
+    skillTarget: 'allEnemies',
+    skillEffects: [{ type: 'burn', value: 25, duration: 2, chance: 70 }],
+    ultMult: 200,
+    ultTarget: 'allEnemies',
+    ultCost: 120,
+  },
+  {
+    name: '뇌전 사냥꾼',
+    emoji: '⚡',
+    element: 'lightning',
+    role: 'dps',
+    baseHP: 2600,
+    baseATK: 780,
+    baseDEF: 300,
+    baseSPD: 112,
+    basicMult: 70,
+    skillMult: 150,
+    skillTarget: 'single',
+    skillEffects: [{ type: 'shock', value: 22, duration: 2, chance: 65 }],
+    ultMult: 300,
+    ultTarget: 'single',
+    ultCost: 110,
+  },
+  {
+    name: '빙결 요술사',
+    emoji: '❄️',
+    element: 'ice',
+    role: 'dps',
+    baseHP: 2500,
+    baseATK: 700,
+    baseDEF: 340,
+    baseSPD: 98,
+    basicMult: 60,
+    skillMult: 100,
+    skillTarget: 'allEnemies',
+    skillEffects: [{ type: 'freeze', value: 0, duration: 1, chance: 40 }],
+    ultMult: 180,
+    ultTarget: 'allEnemies',
+    ultCost: 130,
+  },
+  // Tank enemies
+  {
+    name: '강철 골렘',
+    emoji: '🗿',
+    element: 'physical',
+    role: 'tank',
+    baseHP: 5500,
+    baseATK: 450,
+    baseDEF: 650,
+    baseSPD: 82,
+    basicMult: 55,
+    skillMult: 80,
+    skillTarget: 'allEnemies',
+    skillEffects: [{ type: 'atkDown', value: 15, duration: 2, chance: 80 }],
+    ultMult: 150,
+    ultTarget: 'allEnemies',
+    ultCost: 140,
+  },
+  {
+    name: '심연 수호자',
+    emoji: '🌑',
+    element: 'imaginary',
+    role: 'tank',
+    baseHP: 5000,
+    baseATK: 500,
+    baseDEF: 600,
+    baseSPD: 85,
+    basicMult: 55,
+    skillMult: 90,
+    skillTarget: 'single',
+    skillEffects: [{ type: 'defDown', value: 20, duration: 2, chance: 70 }],
+    ultMult: 160,
+    ultTarget: 'allEnemies',
+    ultCost: 130,
+  },
+  // Support enemies
+  {
+    name: '독 비술사',
+    emoji: '🦂',
+    element: 'wind',
+    role: 'support',
+    baseHP: 3000,
+    baseATK: 600,
+    baseDEF: 350,
+    baseSPD: 95,
+    basicMult: 55,
+    skillMult: 100,
+    skillTarget: 'allEnemies',
+    skillEffects: [
+      { type: 'atkDown', value: 15, duration: 2, chance: 70 },
+      { type: 'spdDown', value: 10, duration: 2, chance: 60 },
+    ],
+    ultMult: 120,
+    ultTarget: 'allEnemies',
+    ultCost: 120,
+  },
+  {
+    name: '차원 점술사',
+    emoji: '🔮',
+    element: 'quantum',
+    role: 'support',
+    baseHP: 3200,
+    baseATK: 580,
+    baseDEF: 380,
+    baseSPD: 100,
+    basicMult: 55,
+    skillMult: 80,
+    skillTarget: 'single',
+    skillEffects: [{ type: 'entangle', value: 25, duration: 2, chance: 60 }],
+    ultMult: 140,
+    ultTarget: 'allEnemies',
+    ultCost: 110,
+  },
+  // Boss-type enemies (appear at higher difficulties)
+  {
+    name: '타락한 장군',
+    emoji: '👹',
+    element: 'physical',
+    role: 'boss',
+    baseHP: 8000,
+    baseATK: 900,
+    baseDEF: 500,
+    baseSPD: 105,
+    basicMult: 75,
+    skillMult: 130,
+    skillTarget: 'allEnemies',
+    skillEffects: [{ type: 'bleed', value: 30, duration: 3, chance: 80 }],
+    ultMult: 250,
+    ultTarget: 'allEnemies',
+    ultCost: 100,
+  },
+  {
+    name: '업화의 마왕',
+    emoji: '😈',
+    element: 'fire',
+    role: 'boss',
+    baseHP: 9000,
+    baseATK: 950,
+    baseDEF: 480,
+    baseSPD: 100,
+    basicMult: 70,
+    skillMult: 120,
+    skillTarget: 'allEnemies',
+    skillEffects: [{ type: 'burn', value: 35, duration: 3, chance: 90 }],
+    ultMult: 280,
+    ultTarget: 'allEnemies',
+    ultCost: 110,
+  },
+]
+
+function pickRandom<T>(arr: T[]): T {
+  return arr[Math.floor(Math.random() * arr.length)]
+}
+
+export function generateDungeonEnemies(difficulty: number): DungeonEnemy[] {
+  // Legacy interface for backward compat
+  const enhanced = generateEnhancedEnemies(difficulty)
+  return enhanced.map((e) => ({
+    name: e.name,
+    emoji: e.emoji,
+    hp: e.hp,
+    atk: e.atk,
+    def: e.def,
+    spd: e.spd,
+  }))
+}
+
+export function generateEnhancedEnemies(difficulty: number): EnemyDef[] {
+  // Difficulty scaling: much steeper curve
+  // Diff 1: mult 1.0   — needs Lv.15-25 party
+  // Diff 2: mult 1.8   — needs Lv.30-40 party
+  // Diff 3: mult 2.8   — needs Lv.40-50 party
+  // Diff 4: mult 4.0   — needs Lv.50-60 party
+  // Diff 5: mult 5.5   — needs Lv.60-70 party
+  // Diff 6: mult 7.5   — needs Lv.70-80 max gear
+  const mult = difficulty <= 1 ? 1 : Math.pow(1.5, difficulty - 1) * 0.9
+
+  // Enemy count scales with difficulty
+  const count = Math.min(5, 2 + Math.floor(difficulty / 2))
+
+  // Select enemy templates based on difficulty
+  const availableTemplates =
+    difficulty >= 5
+      ? enemyTemplates // all including bosses
+      : difficulty >= 3
+        ? enemyTemplates.filter((t) => t.role !== 'boss')
+        : enemyTemplates.filter((t) => t.role === 'dps' || t.role === 'support')
+
+  // At difficulty 5+, one enemy is a boss
+  const hasBoss = difficulty >= 5
+  const bossTemplates = enemyTemplates.filter((t) => t.role === 'boss')
+
+  const enemies: EnemyDef[] = []
 
   for (let i = 0; i < count; i++) {
-    const template = names[Math.floor(Math.random() * names.length)]
+    const isBossSlot = hasBoss && i === 0
+    const template = isBossSlot
+      ? pickRandom(bossTemplates)
+      : pickRandom(availableTemplates)
+
+    const bossMult = isBossSlot ? 1.5 : 1
+
     enemies.push({
       name: template.name,
       emoji: template.emoji,
-      hp: Math.floor((800 + Math.random() * 400) * mult),
-      atk: Math.floor((200 + Math.random() * 150) * mult),
-      def: Math.floor((100 + Math.random() * 80) * mult),
-      spd: Math.floor(85 + Math.random() * 20),
+      hp: Math.floor(
+        template.baseHP * mult * bossMult * (0.9 + Math.random() * 0.2),
+      ),
+      atk: Math.floor(
+        template.baseATK * mult * bossMult * (0.9 + Math.random() * 0.2),
+      ),
+      def: Math.floor(
+        template.baseDEF * mult * bossMult * (0.9 + Math.random() * 0.2),
+      ),
+      spd: Math.floor(template.baseSPD * (0.95 + Math.random() * 0.1)),
+      element: template.element,
+      basicMult: template.basicMult,
+      skillMult: template.skillMult,
+      skillTarget: template.skillTarget,
+      skillEffects: template.skillEffects,
+      ultMult: template.ultMult,
+      ultTarget: template.ultTarget,
+      ultCost: template.ultCost,
     })
   }
 
