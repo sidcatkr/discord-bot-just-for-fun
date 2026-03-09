@@ -403,17 +403,101 @@ export function getEffectiveStats(
   const totalHpBonus = items.reduce((s, i) => s + i.hp_bonus, 0)
   const totalCritBonus = items.reduce((s, i) => s + i.crit_bonus, 0)
 
-  const rawCritRate = player.crit_rate + totalCritBonus
+  // Relic bonuses — all equipped relics across all characters contribute to player stats
+  const equippedRelics = db
+    .prepare(
+      'SELECT * FROM owned_relics WHERE user_id = ? AND equipped_by IS NOT NULL',
+    )
+    .all(userId) as OwnedRelic[]
+
+  let relicAtkFlat = 0,
+    relicAtkPct = 0
+  let relicDefFlat = 0,
+    relicDefPct = 0
+  let relicHpFlat = 0,
+    relicHpPct = 0
+  let relicCritRate = 0,
+    relicCritDmg = 0
+
+  for (const relic of equippedRelics) {
+    // Main stat
+    const mainVal = relic.main_stat_value
+    switch (relic.main_stat_type) {
+      case 'atk_flat':
+        relicAtkFlat += mainVal
+        break
+      case 'atk_pct':
+        relicAtkPct += mainVal
+        break
+      case 'def_flat':
+        relicDefFlat += mainVal
+        break
+      case 'def_pct':
+        relicDefPct += mainVal
+        break
+      case 'hp_flat':
+        relicHpFlat += mainVal
+        break
+      case 'hp_pct':
+        relicHpPct += mainVal
+        break
+      case 'crit_rate':
+        relicCritRate += mainVal
+        break
+      case 'crit_dmg':
+        relicCritDmg += mainVal
+        break
+    }
+    // Sub stats
+    const subs: { type: string; value: number }[] = JSON.parse(relic.sub_stats)
+    for (const sub of subs) {
+      switch (sub.type) {
+        case 'atk_flat':
+          relicAtkFlat += sub.value
+          break
+        case 'atk_pct':
+          relicAtkPct += sub.value
+          break
+        case 'def_flat':
+          relicDefFlat += sub.value
+          break
+        case 'def_pct':
+          relicDefPct += sub.value
+          break
+        case 'hp_flat':
+          relicHpFlat += sub.value
+          break
+        case 'hp_pct':
+          relicHpPct += sub.value
+          break
+        case 'crit_rate':
+          relicCritRate += sub.value
+          break
+        case 'crit_dmg':
+          relicCritDmg += sub.value
+          break
+      }
+    }
+  }
+
+  const baseAtk = player.attack + totalAttackBonus + relicAtkFlat
+  const finalAtk = Math.floor(baseAtk * (1 + relicAtkPct))
+  const baseDef = player.defense + totalDefenseBonus + relicDefFlat
+  const finalDef = Math.floor(baseDef * (1 + relicDefPct))
+  const baseHp = player.max_hp + totalHpBonus + relicHpFlat
+  const finalHp = Math.floor(baseHp * (1 + relicHpPct))
+
+  const rawCritRate = player.crit_rate + totalCritBonus + relicCritRate
   // Cap crit_rate at 1.0 (100%), overflow goes to crit_damage
   const effectiveCritRate = Math.min(1, rawCritRate)
   const overflowCrit = Math.max(0, rawCritRate - 1)
   // Base crit damage is 2x (200%), each 1% overflow adds 1% crit damage
-  const critDamage = 2 + overflowCrit
+  const critDamage = 2 + overflowCrit + relicCritDmg
 
   return {
-    attack: player.attack + totalAttackBonus,
-    defense: player.defense + totalDefenseBonus,
-    max_hp: player.max_hp + totalHpBonus,
+    attack: finalAtk,
+    defense: finalDef,
+    max_hp: finalHp,
     crit_rate: effectiveCritRate,
     crit_damage: critDamage,
     evasion: player.evasion,
@@ -1237,6 +1321,7 @@ export interface OwnedRelic {
   quality: string
   equipped_by: string | null
   obtained_at: string
+  level: number
 }
 
 export function getOwnedRelics(userId: string): OwnedRelic[] {
@@ -1351,6 +1436,8 @@ export interface GachaCurrency {
   stellarite: number
   standard_pass: number
   fate_pass: number
+  stardust: number
+  fate_token: number
 }
 
 export function getGachaCurrency(userId: string): GachaCurrency {
@@ -1359,7 +1446,13 @@ export function getGachaCurrency(userId: string): GachaCurrency {
     .get(userId) as GachaCurrency | undefined
   if (row) return row
   db.prepare('INSERT INTO gacha_currency (user_id) VALUES (?)').run(userId)
-  return { stellarite: 0, standard_pass: 0, fate_pass: 0 }
+  return {
+    stellarite: 0,
+    standard_pass: 0,
+    fate_pass: 0,
+    stardust: 0,
+    fate_token: 0,
+  }
 }
 
 export function addStellarite(userId: string, amount: number): void {
@@ -1380,9 +1473,26 @@ export function addFatePass(userId: string, amount: number): void {
   ).run(userId, amount, amount)
 }
 
+export function addStardust(userId: string, amount: number): void {
+  db.prepare(
+    'INSERT INTO gacha_currency (user_id, stardust) VALUES (?, ?) ON CONFLICT(user_id) DO UPDATE SET stardust = stardust + ?',
+  ).run(userId, amount, amount)
+}
+
+export function addFateToken(userId: string, amount: number): void {
+  db.prepare(
+    'INSERT INTO gacha_currency (user_id, fate_token) VALUES (?, ?) ON CONFLICT(user_id) DO UPDATE SET fate_token = fate_token + ?',
+  ).run(userId, amount, amount)
+}
+
 export function spendCurrency(
   userId: string,
-  field: 'stellarite' | 'standard_pass' | 'fate_pass',
+  field:
+    | 'stellarite'
+    | 'standard_pass'
+    | 'fate_pass'
+    | 'stardust'
+    | 'fate_token',
   amount: number,
 ): boolean {
   const cur = getGachaCurrency(userId)
@@ -1391,6 +1501,52 @@ export function spendCurrency(
     `UPDATE gacha_currency SET ${field} = ${field} - ? WHERE user_id = ?`,
   ).run(amount, userId)
   return true
+}
+
+// ══════════════════════════════════════════════════════════
+//  Season 2 — Shop Purchase Helpers
+// ══════════════════════════════════════════════════════════
+
+export interface ShopPurchase {
+  user_id: string
+  item_key: string
+  purchased_count: number
+  reset_at: string
+}
+
+export function getShopPurchases(userId: string): ShopPurchase[] {
+  // Reset expired entries
+  db.prepare(
+    "DELETE FROM shop_purchases WHERE user_id = ? AND reset_at <= datetime('now')",
+  ).run(userId)
+  return db
+    .prepare('SELECT * FROM shop_purchases WHERE user_id = ?')
+    .all(userId) as ShopPurchase[]
+}
+
+export function getShopPurchaseCount(userId: string, itemKey: string): number {
+  db.prepare(
+    "DELETE FROM shop_purchases WHERE user_id = ? AND item_key = ? AND reset_at <= datetime('now')",
+  ).run(userId, itemKey)
+  const row = db
+    .prepare(
+      'SELECT purchased_count FROM shop_purchases WHERE user_id = ? AND item_key = ?',
+    )
+    .get(userId, itemKey) as { purchased_count: number } | undefined
+  return row?.purchased_count ?? 0
+}
+
+export function recordShopPurchase(
+  userId: string,
+  itemKey: string,
+  amount: number,
+): void {
+  const resetAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString()
+  db.prepare(
+    `INSERT INTO shop_purchases (user_id, item_key, purchased_count, reset_at)
+     VALUES (?, ?, ?, ?)
+     ON CONFLICT(user_id, item_key) DO UPDATE SET purchased_count = purchased_count + ?`,
+  ).run(userId, itemKey, amount, resetAt, amount)
 }
 
 // ══════════════════════════════════════════════════════════
@@ -1564,4 +1720,169 @@ export function spendMaterial(
     `UPDATE materials SET ${type} = ${type} - ? WHERE user_id = ?`,
   ).run(amount, userId)
   return true
+}
+
+// ══════════════════════════════════════════════════════════
+//  Season 2 — Relic Leveling Helpers
+// ══════════════════════════════════════════════════════════
+
+export const RELIC_MAX_LEVEL = 15
+export const RELIC_SUBSTAT_LEVELS = [3, 6, 9, 12]
+
+export type RelicStatType =
+  | 'atk_flat'
+  | 'atk_pct'
+  | 'def_flat'
+  | 'def_pct'
+  | 'hp_flat'
+  | 'hp_pct'
+  | 'crit_rate'
+  | 'crit_dmg'
+
+export interface RelicSubStat {
+  type: RelicStatType
+  value: number
+}
+
+const SUBSTAT_ROLLS: Record<RelicStatType, [number, number]> = {
+  atk_flat: [10, 20],
+  atk_pct: [0.02, 0.04],
+  def_flat: [8, 15],
+  def_pct: [0.02, 0.04],
+  hp_flat: [20, 40],
+  hp_pct: [0.02, 0.04],
+  crit_rate: [0.01, 0.03],
+  crit_dmg: [0.02, 0.06],
+}
+
+const MAIN_STAT_SCALING: Record<string, { base: number; perLevel: number }> = {
+  hp_flat: { base: 100, perLevel: 20 },
+  atk_flat: { base: 20, perLevel: 4 },
+  hp_pct: { base: 0.03, perLevel: 0.006 },
+  atk_pct: { base: 0.03, perLevel: 0.006 },
+  def_pct: { base: 0.03, perLevel: 0.006 },
+  crit_rate: { base: 0.02, perLevel: 0.004 },
+  crit_dmg: { base: 0.04, perLevel: 0.008 },
+}
+
+export const RELIC_STAT_NAMES: Record<RelicStatType, string> = {
+  atk_flat: '공격력',
+  atk_pct: '공격력%',
+  def_flat: '방어력',
+  def_pct: '방어력%',
+  hp_flat: '체력',
+  hp_pct: '체력%',
+  crit_rate: '치명타 확률',
+  crit_dmg: '치명타 피해',
+}
+
+export function getRelicLevelCost(currentLevel: number): number {
+  return (currentLevel + 1) * 100 + 50
+}
+
+export function getRelicMainStatValue(statType: string, level: number): number {
+  const scaling = MAIN_STAT_SCALING[statType]
+  if (!scaling) return 0
+  return scaling.base + scaling.perLevel * level
+}
+
+function rollSubStatValue(type: RelicStatType): number {
+  const [min, max] = SUBSTAT_ROLLS[type]
+  return min + Math.random() * (max - min)
+}
+
+const ALL_SUBSTATS: RelicStatType[] = [
+  'atk_flat',
+  'atk_pct',
+  'def_flat',
+  'def_pct',
+  'hp_flat',
+  'hp_pct',
+  'crit_rate',
+  'crit_dmg',
+]
+
+export function levelUpRelic(
+  userId: string,
+  relicId: number,
+): {
+  success: boolean
+  newLevel: number
+  upgradedStat?: RelicSubStat
+  message: string
+} {
+  const relic = db
+    .prepare('SELECT * FROM owned_relics WHERE id = ? AND user_id = ?')
+    .get(relicId, userId) as OwnedRelic | undefined
+
+  if (!relic)
+    return { success: false, newLevel: 0, message: '유물을 찾을 수 없습니다.' }
+  if (relic.level >= RELIC_MAX_LEVEL)
+    return {
+      success: false,
+      newLevel: relic.level,
+      message: '이미 최대 레벨입니다.',
+    }
+
+  const cost = getRelicLevelCost(relic.level)
+  const newLevel = relic.level + 1
+  const newMainValue = getRelicMainStatValue(relic.main_stat_type, newLevel)
+
+  let subStats: RelicSubStat[] = JSON.parse(relic.sub_stats)
+  let upgradedStat: RelicSubStat | undefined
+
+  // At +3, +6, +9, +12 — add or upgrade a substat
+  if (RELIC_SUBSTAT_LEVELS.includes(newLevel)) {
+    if (subStats.length < 4) {
+      // Add new substat (not duplicate of main stat or existing substats)
+      const existing = new Set([
+        relic.main_stat_type,
+        ...subStats.map((s) => s.type),
+      ])
+      const available = ALL_SUBSTATS.filter((s) => !existing.has(s))
+      if (available.length > 0) {
+        const newType = available[Math.floor(Math.random() * available.length)]
+        const newValue = rollSubStatValue(newType)
+        const newSub: RelicSubStat = {
+          type: newType,
+          value: Number(newValue.toFixed(4)),
+        }
+        subStats.push(newSub)
+        upgradedStat = newSub
+      }
+    } else {
+      // Upgrade random existing substat
+      const idx = Math.floor(Math.random() * subStats.length)
+      const addValue = rollSubStatValue(subStats[idx].type)
+      subStats[idx].value = Number((subStats[idx].value + addValue).toFixed(4))
+      upgradedStat = subStats[idx]
+    }
+  }
+
+  db.prepare(
+    'UPDATE owned_relics SET level = ?, main_stat_value = ?, sub_stats = ? WHERE id = ? AND user_id = ?',
+  ).run(newLevel, newMainValue, JSON.stringify(subStats), relicId, userId)
+
+  return {
+    success: true,
+    newLevel,
+    upgradedStat,
+    message: `레벨 ${newLevel}로 강화 성공!`,
+  }
+}
+
+export function formatStatValue(type: string, value: number): string {
+  if (type.endsWith('_pct') || type === 'crit_rate' || type === 'crit_dmg') {
+    return `${(value * 100).toFixed(1)}%`
+  }
+  return `${Math.floor(value)}`
+}
+
+export function getRelicById(
+  userId: string,
+  relicId: number,
+): OwnedRelic | undefined {
+  return db
+    .prepare('SELECT * FROM owned_relics WHERE id = ? AND user_id = ?')
+    .get(relicId, userId) as OwnedRelic | undefined
 }

@@ -7,6 +7,7 @@ import {
   getOrCreatePlayer,
   addGold,
   addXp,
+  addStellarite,
   addTitle,
   isPlayerDead,
   damagePlayer,
@@ -225,6 +226,13 @@ export async function execute(interaction: ChatInputCommandInteraction) {
   addGold(user.id, guildId, totalGold)
   const leveledUp = addXp(user.id, guildId, xpGain)
 
+  // 5% chance for stellarite
+  let stellariteBonus = 0
+  if (chance(5)) {
+    stellariteBonus = random(10, 25)
+    addStellarite(user.id, stellariteBonus)
+  }
+
   // Check for special titles
   if (results.some((r) => r.mineral.rarity === 'mythic')) {
     addTitle(user.id, guildId, '⛏️ 전설의 광부')
@@ -253,6 +261,7 @@ export async function execute(interaction: ChatInputCommandInteraction) {
         `💰 총 수입: **${totalGold}G**\n` +
         `✨ XP: **+${xpGain}**` +
         (leveledUp ? '\n🎉 **레벨 업!!!**' : '') +
+        (stellariteBonus > 0 ? `\n💎 성광석 +${stellariteBonus}` : '') +
         hazardText,
     )
     .setFooter({

@@ -324,4 +324,34 @@ try {
   )
 }
 
+// Migrate: add stardust and fate_token to gacha_currency
+try {
+  db.prepare('SELECT stardust FROM gacha_currency LIMIT 1').get()
+} catch {
+  db.exec('ALTER TABLE gacha_currency ADD COLUMN stardust INTEGER DEFAULT 0')
+}
+try {
+  db.prepare('SELECT fate_token FROM gacha_currency LIMIT 1').get()
+} catch {
+  db.exec('ALTER TABLE gacha_currency ADD COLUMN fate_token INTEGER DEFAULT 0')
+}
+
+// Migrate: add level to owned_relics
+try {
+  db.prepare('SELECT level FROM owned_relics LIMIT 1').get()
+} catch {
+  db.exec('ALTER TABLE owned_relics ADD COLUMN level INTEGER DEFAULT 0')
+}
+
+// Shop purchases table (monthly reset)
+db.exec(`
+  CREATE TABLE IF NOT EXISTS shop_purchases (
+    user_id TEXT NOT NULL,
+    item_key TEXT NOT NULL,
+    purchased_count INTEGER DEFAULT 0,
+    reset_at TEXT NOT NULL,
+    PRIMARY KEY(user_id, item_key)
+  );
+`)
+
 export default db

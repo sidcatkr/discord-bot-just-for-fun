@@ -11,6 +11,7 @@ import {
   getOrCreatePlayer,
   addGold,
   addXp,
+  addStellarite,
   isPlayerDead,
   pick,
   random,
@@ -342,6 +343,13 @@ export async function execute(interaction: ChatInputCommandInteraction) {
       addGold(user.id, guildId, goldReward)
       const leveledUp = addXp(user.id, guildId, xpReward)
 
+      // 15% chance for stellarite on correct answer
+      let stellariteBonus = 0
+      if (Math.random() < 0.15) {
+        stellariteBonus = random(5, 10)
+        addStellarite(user.id, stellariteBonus)
+      }
+
       const resultEmbed = new EmbedBuilder()
         .setColor(0x2ecc71)
         .setTitle('🧠 퀴즈 결과!')
@@ -350,6 +358,9 @@ export async function execute(interaction: ChatInputCommandInteraction) {
             `✅ 정답: **${q.choices[q.answer]}**\n\n` +
             `${pick(correctMessages)}\n\n` +
             `💰 **+${goldReward}G** | ✨ **+${xpReward} XP**` +
+            (stellariteBonus > 0
+              ? ` | 💎 **성광석 +${stellariteBonus}**`
+              : '') +
             (leveledUp ? '\n🎉 **레벨 업!!!**' : ''),
         )
         .setTimestamp()

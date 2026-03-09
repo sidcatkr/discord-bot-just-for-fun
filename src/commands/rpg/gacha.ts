@@ -16,6 +16,8 @@ import {
   addStellarite,
   addStandardPass,
   addFatePass,
+  addStardust,
+  addFateToken,
   spendCurrency,
   getBannerPity,
   incrementBannerPity,
@@ -60,6 +62,13 @@ const SOFT_PITY_INCREMENT = 0.06 // +6% per pull after 74
 // ── Currency costs ──
 const STELLARITE_PER_PASS = 160
 const STELLARITE_PER_FATE = 160
+
+// ── Stardust per pull rarity ──
+const STARDUST_PER_RARITY: Record<number, number> = {
+  3: 15,
+  4: 40,
+  5: 100,
+}
 
 function get5StarRate(pityCount: number, bonusRate: number): number {
   if (pityCount >= HARD_PITY - 1) return 1.0 // hard pity
@@ -349,14 +358,23 @@ function rollWeaponPickup(
 }
 
 function addResultToAccount(userId: string, result: GachaResult): string {
+  // Award stardust per pull
+  const dust = STARDUST_PER_RARITY[result.rarity] ?? 15
+  addStardust(userId, dust)
+
+  // Award fate token on lost 50/50
+  if (result.won5050 === false) {
+    addFateToken(userId, 1)
+  }
+
   if (result.type === 'character') {
     const res = addCharacter(userId, result.id)
-    if (res.isNew) return `🆕 새 캐릭터!`
-    return `각성 ${res.awakening}단계 돌파!`
+    if (res.isNew) return `🆕 새 캐릭터! | ✨여광 +${dust}`
+    return `각성 ${res.awakening}단계 돌파! | ✨여광 +${dust}`
   } else {
     const res = addWeapon(userId, result.id)
-    if (res.isNew) return `🆕 새 무기!`
-    return `정련 ${res.refinement}단계!`
+    if (res.isNew) return `🆕 새 무기! | ✨여광 +${dust}`
+    return `정련 ${res.refinement}단계! | ✨여광 +${dust}`
   }
 }
 
@@ -528,7 +546,7 @@ export async function execute(interaction: ChatInputCommandInteraction) {
       const pityInfo = getBannerPity(user.id, bannerType)
       finalEmbed
         .setFooter({
-          text: `성광석: ${updatedCurrency.stellarite} | ${currencyName}: ${updatedCurrency[currencyField]}장 | 천장: ${pityInfo.pity_count}/${HARD_PITY}${pityInfo.guaranteed ? ' (확정)' : ''}`,
+          text: `성광석: ${updatedCurrency.stellarite} | ${currencyName}: ${updatedCurrency[currencyField]}장 | 여광: ${updatedCurrency.stardust} | 선택의 증표: ${updatedCurrency.fate_token} | 천장: ${pityInfo.pity_count}/${HARD_PITY}${pityInfo.guaranteed ? ' (확정)' : ''}`,
         })
         .setTimestamp()
 
@@ -580,7 +598,7 @@ export async function execute(interaction: ChatInputCommandInteraction) {
         `등급: ${stars} ${starRarityLabels[result.rarity] ?? ''}`,
         result.isFeatured ? '**🔥 픽업 대상!**' : '',
         result.won5050 === false
-          ? '❌ **50/50 실패 (픽뚫)** — 다음 5성은 확정!'
+          ? '❌ **50/50 실패 (픽뚫)** — 다음 5성은 확정! 선택의 증표 +1'
           : '',
         result.won5050 === true ? '✅ **50/50 성공!**' : '',
         '',
@@ -614,7 +632,7 @@ export async function execute(interaction: ChatInputCommandInteraction) {
       const pityInfo = getBannerPity(user.id, bannerType)
       finalEmbed
         .setFooter({
-          text: `성광석: ${updatedCurrency.stellarite} | ${currencyName}: ${updatedCurrency[currencyField]}장 | 천장: ${pityInfo.pity_count}/${HARD_PITY}${pityInfo.guaranteed ? ' (확정)' : ''}`,
+          text: `성광석: ${updatedCurrency.stellarite} | ${currencyName}: ${updatedCurrency[currencyField]}장 | 여광: ${updatedCurrency.stardust} | 선택의 증표: ${updatedCurrency.fate_token} | 천장: ${pityInfo.pity_count}/${HARD_PITY}${pityInfo.guaranteed ? ' (확정)' : ''}`,
         })
         .setTimestamp()
 

@@ -26,6 +26,7 @@ import {
   damagePlayer,
   getEffectiveStats,
   addXp,
+  addStellarite,
   pick,
   sleep,
   random,
@@ -996,6 +997,18 @@ async function handleCast(
     })
     if (fish.rarity === 'mythic') {
       addTitle(user.id, guildId, '🎣 전설의 낚시왕')
+    }
+  }
+
+  // 5% chance for stellarite on rare+ fish
+  if (['rare', 'epic', 'legendary', 'mythic'].includes(fish.rarity)) {
+    if (Math.random() < 0.05) {
+      const stellariteBonus = random(10, 20)
+      addStellarite(user.id, stellariteBonus)
+      resultEmbed.addFields({
+        name: '💎 성광석 발견!',
+        value: `물고기가 성광석을 물고 있었다! +${stellariteBonus}`,
+      })
     }
   }
 

@@ -8,6 +8,7 @@ import {
   damagePlayer,
   addXp,
   addGold,
+  addStellarite,
   logBattle,
   hasEffect,
   applyStatusEffect,
@@ -342,6 +343,13 @@ export async function execute(interaction: ChatInputCommandInteraction) {
     allLines.push(`✨ XP +${xpReward} | 💰 +${goldReward}G`)
     if (leveledUp) {
       allLines.push(`🎉 **레벨 업!!!**`)
+    }
+
+    // 10% chance for stellarite bonus
+    if (chance(10)) {
+      const stellariteReward = random(5, 15)
+      addStellarite(winnerId, stellariteReward)
+      allLines.push(`💎 성광석 +${stellariteReward}`)
     }
 
     // Kick chance on KO (4%)
