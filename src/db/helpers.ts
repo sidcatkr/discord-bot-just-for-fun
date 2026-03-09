@@ -1040,3 +1040,31 @@ export async function tryFunKick(
     }
   }
 }
+
+// ──────────────────────────────────────
+//  Gacha Pity (픽뚫)
+// ──────────────────────────────────────
+
+export function getGachaPity(userId: string, guildId: string): number {
+  const row = db
+    .prepare(
+      'SELECT pity_count FROM gacha_pity WHERE user_id = ? AND guild_id = ?',
+    )
+    .get(userId, guildId) as { pity_count: number } | undefined
+  return row?.pity_count ?? 0
+}
+
+export function incrementGachaPity(userId: string, guildId: string): number {
+  db.prepare(
+    `INSERT INTO gacha_pity (user_id, guild_id, pity_count) VALUES (?, ?, 1)
+     ON CONFLICT(user_id, guild_id) DO UPDATE SET pity_count = pity_count + 1`,
+  ).run(userId, guildId)
+  return getGachaPity(userId, guildId)
+}
+
+export function resetGachaPity(userId: string, guildId: string): void {
+  db.prepare(
+    `INSERT INTO gacha_pity (user_id, guild_id, pity_count) VALUES (?, ?, 0)
+     ON CONFLICT(user_id, guild_id) DO UPDATE SET pity_count = 0`,
+  ).run(userId, guildId)
+}

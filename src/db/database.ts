@@ -99,6 +99,14 @@ db.exec(`
     UNIQUE(user_id, guild_id, title)
   );
 
+  -- Gacha pity counter (픽뚫)
+  CREATE TABLE IF NOT EXISTS gacha_pity (
+    user_id TEXT NOT NULL,
+    guild_id TEXT NOT NULL,
+    pity_count INTEGER DEFAULT 0,
+    PRIMARY KEY (user_id, guild_id)
+  );
+
   -- Fish collection
   CREATE TABLE IF NOT EXISTS fish_collection (
     id INTEGER PRIMARY KEY AUTOINCREMENT,

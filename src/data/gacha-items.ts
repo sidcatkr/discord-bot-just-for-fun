@@ -1197,6 +1197,21 @@ const commonTemplates: ItemTemplate = {
     '가짜',
     '싸구려',
     '저렴한',
+    '지저분한',
+    '손상된',
+    '휘어진',
+    '색바랜',
+    '때묻은',
+    '무거운',
+    '무딘',
+    '삐걱거리는',
+    '허름한',
+    '초라한',
+    '낡아빠진',
+    '볼품없는',
+    '수상쩍은',
+    '엉성한',
+    '쓸데없는',
   ],
   bases: [
     { name: '검', emoji: '🗡️' },
@@ -1219,8 +1234,26 @@ const commonTemplates: ItemTemplate = {
     { name: '열쇠', emoji: '🔑' },
     { name: '나침반', emoji: '🧭' },
     { name: '양초', emoji: '🕯️' },
+    { name: '안경', emoji: '👓' },
+    { name: '구두', emoji: '👞' },
+    { name: '넥타이', emoji: '👔' },
+    { name: '노트', emoji: '📓' },
+    { name: '담요', emoji: '🛏️' },
   ],
-  suffixes: ['', '(파손)', '(불량)', '(중고)', '(수선됨)', '(더러운)'],
+  suffixes: [
+    '',
+    '(파손)',
+    '(불량)',
+    '(중고)',
+    '(수선됨)',
+    '(더러운)',
+    '(임시방편)',
+    '(복제품)',
+    '(모조품)',
+    '(혹시나)',
+    '(일단)',
+    '(혹여나)',
+  ],
 }
 
 const uncommonTemplates: ItemTemplate = {
@@ -1243,6 +1276,26 @@ const uncommonTemplates: ItemTemplate = {
     '집중의',
     '수호의',
     '감시자의',
+    '민첩한',
+    '균형잡힌',
+    '비전의',
+    '영리한',
+    '신뢰할 만한',
+    '탄탄한',
+    '우아한',
+    '세심한',
+    '치밀한',
+    '정교한',
+    '단련된',
+    '청명한',
+    '활기찬',
+    '활발한',
+    '경계의',
+    '잠재적',
+    '숨겨진',
+    '신중한',
+    '능숙한',
+    '숙련된',
   ],
   bases: [
     { name: '검', emoji: '⚔️' },
@@ -1263,8 +1316,22 @@ const uncommonTemplates: ItemTemplate = {
     { name: '허리띠', emoji: '🪢' },
     { name: '물약', emoji: '🧪' },
     { name: '두루마리', emoji: '📜' },
+    { name: '창', emoji: '🔱' },
+    { name: '채찍', emoji: '🪢' },
   ],
-  suffixes: ['', '', '', '(+1)', '(개량)', '(시제품)'],
+  suffixes: [
+    '',
+    '(기본)',
+    '(일반)',
+    '(+1)',
+    '(개량)',
+    '(시제품)',
+    '(연습용)',
+    '(개선)',
+    '(1단계)',
+    '(소형)',
+    '(경량형)',
+  ],
 }
 
 const rareTemplates: ItemTemplate = {
@@ -1287,6 +1354,16 @@ const rareTemplates: ItemTemplate = {
     '성직자의',
     '현자의',
     '왕실의',
+    '용암의',
+    '폭풍의',
+    '심해의',
+    '천공의',
+    '황금의',
+    '신비한',
+    '강림한',
+    '조각된',
+    '봉인의',
+    '냉혹한',
   ],
   bases: [
     { name: '대검', emoji: '⚔️' },
@@ -1307,8 +1384,22 @@ const rareTemplates: ItemTemplate = {
     { name: '마법 지팡이', emoji: '🪄' },
     { name: '크리스탈 오브', emoji: '🔮' },
     { name: '룬 두루마리', emoji: '📜' },
+    { name: '전술 창', emoji: '🔱' },
+    { name: '전술 로브', emoji: '🧥' },
   ],
-  suffixes: ['', '', '(+2)', '(강화)', '(축복)', '(각성)'],
+  suffixes: [
+    '',
+    '(기본)',
+    '(+2)',
+    '(강화)',
+    '(축복)',
+    '(각성)',
+    '(보강)',
+    '(성수)',
+    '(단련)',
+    '(심연)',
+    '(고대의)',
+  ],
 }
 
 const epicTemplates: ItemTemplate = {
@@ -1331,6 +1422,14 @@ const epicTemplates: ItemTemplate = {
     '무한의',
     '차원의',
     '영혼의',
+    '봉인된',
+    '해방의',
+    '재앙의',
+    '공허의',
+    '시공의',
+    '신성한',
+    '칠흑의',
+    '태초의',
   ],
   bases: [
     { name: '마검', emoji: '⚔️' },
@@ -1349,8 +1448,20 @@ const epicTemplates: ItemTemplate = {
     { name: '정령의 인장', emoji: '🧿' },
     { name: '불멸의 오브', emoji: '🔮' },
     { name: '비전 두루마리', emoji: '📜' },
+    { name: '혼돈의 오브', emoji: '💥' },
+    { name: '정령 오라', emoji: '🌟' },
   ],
-  suffixes: ['', '', '(+3)', '(초월)', '(각인)', '(영혼 결합)'],
+  suffixes: [
+    '',
+    '(기본)',
+    '(+3)',
+    '(초월)',
+    '(각인)',
+    '(영혼 결합)',
+    '(+4)',
+    '(궁극형)',
+    '(재앙)',
+  ],
 }
 
 const legendaryTemplates: ItemTemplate = {
@@ -1369,6 +1480,14 @@ const legendaryTemplates: ItemTemplate = {
     '공간을 왜곡하는',
     '영혼을 지배하는',
     '신화 속',
+    '존재를 초월한',
+    '세계를 지배하는',
+    '불멸을 깨뜨리는',
+    '진실을 담은',
+    '허공을 가르는',
+    '빛과 어둠의',
+    '경이로운',
+    '초고대의',
   ],
   bases: [
     { name: '성검', emoji: '⚔️' },
@@ -1383,8 +1502,18 @@ const legendaryTemplates: ItemTemplate = {
     { name: '루시퍼의 날개', emoji: '🪽' },
     { name: '영혼 수확기', emoji: '💀' },
     { name: '차원 절단기', emoji: '🌀' },
+    { name: '신화의 철퇴', emoji: '🔨' },
+    { name: '불사조의 갑옷', emoji: '🔥' },
   ],
-  suffixes: ['', '', '(+5)', '(궁극)', '(초월체)', '(각성 완료)'],
+  suffixes: [
+    '',
+    '(기본)',
+    '(+5)',
+    '(궁극)',
+    '(초월체)',
+    '(각성 완료)',
+    '(신화 직전)',
+  ],
 }
 
 const mythicTemplates: ItemTemplate = {
@@ -1420,7 +1549,7 @@ const mythicTemplates: ItemTemplate = {
     { name: '우산', emoji: '☂️' },
     { name: '젓가락', emoji: '🥢' },
   ],
-  suffixes: ['', '', '(EX)', '(Ω)', '(∞)'],
+  suffixes: ['', '(기본)', '(EX)', '(Ω)', '(∞)'],
 }
 
 // Stat ranges per rarity
@@ -1538,24 +1667,23 @@ function generateItems(
   return items.slice(0, targetCount)
 }
 
-// Generate items per rarity to fill up to ~10,000 total
-// Equipment: ~7,000 | Consumables & Materials: ~3,000
-const generatedCommon = generateItems(commonTemplates, 'common', 2500, 42)
+// Generate items per rarity to fill up to ~50,000 total
+const generatedCommon = generateItems(commonTemplates, 'common', 12000, 42)
 const generatedUncommon = generateItems(
   uncommonTemplates,
   'uncommon',
-  1800,
+  8360,
   137,
 )
-const generatedRare = generateItems(rareTemplates, 'rare', 1200, 256)
-const generatedEpic = generateItems(epicTemplates, 'epic', 800, 512)
+const generatedRare = generateItems(rareTemplates, 'rare', 6160, 256)
+const generatedEpic = generateItems(epicTemplates, 'epic', 4212, 512)
 const generatedLegendary = generateItems(
   legendaryTemplates,
   'legendary',
-  350,
+  2156,
   777,
 )
-const generatedMythic = generateItems(mythicTemplates, 'mythic', 150, 999)
+const generatedMythic = generateItems(mythicTemplates, 'mythic', 900, 999)
 
 // ──────────────────────────────────────
 //  Consumable & Material item generation
@@ -1579,6 +1707,20 @@ const consumableCommonTemplate: ItemTemplate = {
     '구겨진',
     '녹슨',
     '식은',
+    '딱딱한',
+    '시큼한',
+    '이상한',
+    '기묘한',
+    '색다른',
+    '독특한',
+    '특이한',
+    '이국적인',
+    '신기한',
+    '예상치 못한',
+    '우연한',
+    '무작위의',
+    '혼합된',
+    '잡다한',
   ],
   bases: [
     { name: '물약', emoji: '🧪' },
@@ -1595,8 +1737,22 @@ const consumableCommonTemplate: ItemTemplate = {
     { name: '연고', emoji: '💊' },
     { name: '떡', emoji: '🍡' },
     { name: '캔디', emoji: '🍬' },
+    { name: '죽', emoji: '🥣' },
+    { name: '젤리', emoji: '🍮' },
+    { name: '초콜릿', emoji: '🍫' },
   ],
-  suffixes: ['', '', '(약)', '(소)', '(잔여분)', '(파손)'],
+  suffixes: [
+    '',
+    '(기본)',
+    '(약)',
+    '(소)',
+    '(잔여분)',
+    '(파손)',
+    '(작은)',
+    '(잔량)',
+    '(오래된)',
+    '(뚜껑없는)',
+  ],
 }
 
 const consumableUncommonTemplate: ItemTemplate = {
@@ -1615,6 +1771,16 @@ const consumableUncommonTemplate: ItemTemplate = {
     '약사의',
     '요리사의',
     '마법의',
+    '최상급',
+    '희귀한',
+    '정성스러운',
+    '수제',
+    '전통',
+    '오래 숙성된',
+    '황금빛',
+    '황제의',
+    '프리미엄',
+    '선별된',
   ],
   bases: [
     { name: '치유 물약', emoji: '🧪' },
@@ -1629,8 +1795,20 @@ const consumableUncommonTemplate: ItemTemplate = {
     { name: '부적', emoji: '🧿' },
     { name: '향', emoji: '🪔' },
     { name: '요리', emoji: '🍲' },
+    { name: '소스', emoji: '🫙' },
   ],
-  suffixes: ['', '', '(중)', '(+1)', '(개량)', '(특제)'],
+  suffixes: [
+    '',
+    '(기본)',
+    '(중)',
+    '(+1)',
+    '(개량)',
+    '(특제)',
+    '(고급)',
+    '(특대)',
+    '(정품)',
+    '(1등급)',
+  ],
 }
 
 const consumableRareTemplate: ItemTemplate = {
@@ -1647,6 +1825,14 @@ const consumableRareTemplate: ItemTemplate = {
     '현자의',
     '고대의',
     '왕실의',
+    '폭발적인',
+    '극한의',
+    '최강의',
+    '희귀한',
+    '비전의',
+    '초희귀',
+    '영원한',
+    '황금의',
   ],
   bases: [
     { name: '엘릭서', emoji: '🧪' },
@@ -1659,8 +1845,20 @@ const consumableRareTemplate: ItemTemplate = {
     { name: '신비의 과일', emoji: '🍇' },
     { name: '마법 케이크', emoji: '🎂' },
     { name: '축복 구슬', emoji: '🟢' },
+    { name: '진액', emoji: '🌊' },
   ],
-  suffixes: ['', '', '(★)', '(대)', '(축복)', '(정제)'],
+  suffixes: [
+    '',
+    '(기본)',
+    '(★)',
+    '(대)',
+    '(축복)',
+    '(정제)',
+    '(S급)',
+    '(초희귀)',
+    '(고대 제조)',
+    '(마법진)',
+  ],
 }
 
 const consumableEpicTemplate: ItemTemplate = {
@@ -1675,6 +1873,14 @@ const consumableEpicTemplate: ItemTemplate = {
     '금단의',
     '영혼의',
     '차원의',
+    '영원한',
+    '초월적',
+    '환상적',
+    '불가사의한',
+    '신비로운',
+    '경이로운',
+    '분열의',
+    '전설에 가까운',
   ],
   bases: [
     { name: '불사약', emoji: '⚗️' },
@@ -1685,8 +1891,9 @@ const consumableEpicTemplate: ItemTemplate = {
     { name: '마력 증폭기', emoji: '🔮' },
     { name: '대천사의 깃털', emoji: '🪶' },
     { name: '정령왕의 축복', emoji: '🌟' },
+    { name: '신성수', emoji: '💎' },
   ],
-  suffixes: ['', '', '(★★)', '(초월)', '(각성)', '(영혼)'],
+  suffixes: ['', '(기본)', '(★★)', '(초월)', '(각성)', '(영혼)', '(귀함)'],
 }
 
 const materialCommonTemplate: ItemTemplate = {
@@ -1705,6 +1912,20 @@ const materialCommonTemplate: ItemTemplate = {
     '부서진',
     '마모된',
     '탁한',
+    '흩어진',
+    '방치된',
+    '버려진',
+    '찌꺼기',
+    '저급한',
+    '투박한',
+    '반쪽짜리',
+    '불완전한',
+    '원시적인',
+    '날것의',
+    '정제 안된',
+    '거칠게 만든',
+    '쓸모없어 보이는',
+    '오래 쌓인',
   ],
   bases: [
     { name: '나무', emoji: '🪵' },
@@ -1719,8 +1940,22 @@ const materialCommonTemplate: ItemTemplate = {
     { name: '점토', emoji: '🏺' },
     { name: '숯', emoji: '♨️' },
     { name: '유리 조각', emoji: '🔩' },
+    { name: '흙덩이', emoji: '🪨' },
+    { name: '나무 조각', emoji: '🪵' },
   ],
-  suffixes: ['', '', '(소)', '(파편)', '(잔해)', '(저급)'],
+  suffixes: [
+    '',
+    '(기본)',
+    '(소)',
+    '(파편)',
+    '(잔해)',
+    '(저급)',
+    '(원료)',
+    '(폐기물)',
+    '(불량)',
+    '(잡동사니)',
+    '(수집물)',
+  ],
 }
 
 const materialUncommonTemplate: ItemTemplate = {
@@ -1737,6 +1972,16 @@ const materialUncommonTemplate: ItemTemplate = {
     '순수한',
     '고급',
     '정밀한',
+    '고급의',
+    '선별된',
+    '귀한',
+    '마력을 담은',
+    '정수의',
+    '압축된',
+    '고밀도의',
+    '결정화된',
+    '최상급의',
+    '안정된',
   ],
   bases: [
     { name: '강철', emoji: '⚙️' },
@@ -1749,8 +1994,19 @@ const materialUncommonTemplate: ItemTemplate = {
     { name: '비단', emoji: '🧣' },
     { name: '용가죽', emoji: '🐲' },
     { name: '달의 조각', emoji: '🌙' },
+    { name: '마력 결정', emoji: '🔷' },
   ],
-  suffixes: ['', '', '(정제)', '(가공)', '(중)', '(고급)'],
+  suffixes: [
+    '',
+    '(기본)',
+    '(정제)',
+    '(가공)',
+    '(중)',
+    '(고급)',
+    '(정수)',
+    '(최고급)',
+    '(압축)',
+  ],
 }
 
 // Generate consumables
@@ -1845,25 +2101,25 @@ function generateMaterials(
 const genConsCommon = generateConsumables(
   consumableCommonTemplate,
   'common',
-  800,
+  5100,
   11111,
 )
 const genConsUncommon = generateConsumables(
   consumableUncommonTemplate,
   'uncommon',
-  500,
+  3120,
   22222,
 )
 const genConsRare = generateConsumables(
   consumableRareTemplate,
   'rare',
-  300,
+  2200,
   33333,
 )
 const genConsEpic = generateConsumables(
   consumableEpicTemplate,
   'epic',
-  150,
+  1134,
   44444,
 )
 
@@ -1871,13 +2127,13 @@ const genConsEpic = generateConsumables(
 const genMatCommon = generateMaterials(
   materialCommonTemplate,
   'common',
-  600,
+  4312,
   55555,
 )
 const genMatUncommon = generateMaterials(
   materialUncommonTemplate,
   'uncommon',
-  400,
+  2178,
   66666,
 )
 

@@ -12,6 +12,9 @@ import {
   pick,
   sleep,
   getUserFortune,
+  getGachaPity,
+  incrementGachaPity,
+  resetGachaPity,
 } from '../../db/helpers.js'
 import {
   gachaPool,
@@ -52,6 +55,29 @@ function rollGacha(_u?: string): GachaItem {
 
   const pool = gachaPool.filter((i) => i.rarity === rarity)
   return pick(pool)
+}
+
+// ── 픽뚫 (Pity) constants ──
+const PITY_THRESHOLD = 90 // 90연차 천장: 전설급 보장
+const PITY_GOLD_REFUND = 150 // 픽뚫 시 골드 반환량
+
+function rollWithPity(
+  userId: string,
+  guildId: string,
+): { item: GachaItem; pitied: boolean } {
+  const newCount = incrementGachaPity(userId, guildId)
+  if (newCount >= PITY_THRESHOLD) {
+    // Force legendary
+    const pool = gachaPool.filter((i) => i.rarity === 'legendary')
+    const item = pick(pool)
+    resetGachaPity(userId, guildId)
+    return { item, pitied: true }
+  }
+  const item = rollGacha(userId)
+  if (item.rarity === 'legendary' || item.rarity === 'mythic') {
+    resetGachaPity(userId, guildId)
+  }
+  return { item, pitied: false }
 }
 
 export async function execute(interaction: ChatInputCommandInteraction) {
@@ -114,8 +140,16 @@ export async function execute(interaction: ChatInputCommandInteraction) {
 
     // Roll all 10
     const items: GachaItem[] = []
+    const pitiedIndices: number[] = []
+    let totalPityRefund = 0
     for (let i = 0; i < 10; i++) {
-      items.push(rollGacha(user.id))
+      const { item, pitied } = rollWithPity(user.id, guildId)
+      items.push(item)
+      if (pitied) {
+        pitiedIndices.push(i)
+        totalPityRefund += PITY_GOLD_REFUND
+        addGold(user.id, guildId, PITY_GOLD_REFUND)
+      }
     }
 
     // Add items to inventory
@@ -146,7 +180,8 @@ export async function execute(interaction: ChatInputCommandInteraction) {
         if (item.hp > 0) stats.push(`❤️+${item.hp}`)
         if (item.crit > 0) stats.push(`🎯+${(item.crit * 100).toFixed(0)}%`)
         const statStr = stats.length > 0 ? ` (${stats.join(' ')})` : ''
-        return `${i + 1}. ${item.emoji} **${item.name}** ${rarityLabels[item.rarity]}${statStr}`
+        const pityTag = pitiedIndices.includes(i) ? ' 🛡️픽뚫' : ''
+        return `${i + 1}. ${item.emoji} **${item.name}** ${rarityLabels[item.rarity]}${statStr}${pityTag}`
       })
       .join('\n')
 
@@ -215,9 +250,17 @@ export async function execute(interaction: ChatInputCommandInteraction) {
       })
     }
 
+    if (pitiedIndices.length > 0) {
+      finalEmbed.addFields({
+        name: '🛡️ 픽뚫 발동!',
+        value: `**${pitiedIndices.length}회 천장(${PITY_THRESHOLD}연차) 도달!** 전설급 보장 + ${totalPityRefund}G 반환`,
+      })
+    }
+
+    const currentPity10 = getGachaPity(user.id, guildId)
     finalEmbed
       .setFooter({
-        text: `잔여 골드: ${player.gold - cost}G | 비용: ${cost}G (10% 할인)`,
+        text: `잔여 골드: ${player.gold - cost + totalPityRefund}G | 픽뚫: ${currentPity10}/${PITY_THRESHOLD} | 비용: ${cost}G (10% 할인)`,
       })
       .setTimestamp()
 
@@ -227,7 +270,10 @@ export async function execute(interaction: ChatInputCommandInteraction) {
   }
 
   // ══════════ Single pull (original) ══════════
-  const item = rollGacha(user.id)
+  const { item, pitied } = rollWithPity(user.id, guildId)
+  if (pitied) {
+    addGold(user.id, guildId, PITY_GOLD_REFUND)
+  }
 
   // ── Phase 1: 돌리는 중 ──
   const embed1 = new EmbedBuilder()
@@ -319,6 +365,13 @@ export async function execute(interaction: ChatInputCommandInteraction) {
     }
   }
 
+  if (pitied) {
+    finalEmbed.addFields({
+      name: '🛡️ 픽뚫 발동!',
+      value: `**${PITY_THRESHOLD}연차 천장 도달!** 전설급 보장 + ${PITY_GOLD_REFUND}G 반환`,
+    })
+  }
+
   if (item.rarity === 'common') {
     const sadMessages = [
       '😐 ...뭐, 세상이 다 그런 거지.',
@@ -343,8 +396,9 @@ export async function execute(interaction: ChatInputCommandInteraction) {
     })
   }
 
+  const currentPity = getGachaPity(user.id, guildId)
   finalEmbed.setFooter({
-    text: `잔여 골드: ${player.gold - cost}G | 전체 아이템 풀: ${gachaPool.length}종`,
+    text: `잔여 골드: ${player.gold - cost + (pitied ? PITY_GOLD_REFUND : 0)}G | 픽뚫: ${currentPity}/${PITY_THRESHOLD} | 풀: ${gachaPool.length}종`,
   })
   finalEmbed.setTimestamp()
 
