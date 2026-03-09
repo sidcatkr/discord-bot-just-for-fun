@@ -1,5 +1,6 @@
 import {
   ChatInputCommandInteraction,
+  AutocompleteInteraction,
   EmbedBuilder,
   SlashCommandBuilder,
 } from 'discord.js'
@@ -147,12 +148,14 @@ export const data = new SlashCommandBuilder()
         opt
           .setName('featured_id')
           .setDescription('픽업 대상 ID')
-          .setRequired(true),
+          .setRequired(true)
+          .setAutocomplete(true),
       )
       .addStringOption((opt) =>
         opt
           .setName('featured_4stars')
-          .setDescription('픽업 4성 ID들 (쉼표 구분)'),
+          .setDescription('픽업 4성 ID들 (쉼표 구분)')
+          .setAutocomplete(true),
       ),
   )
   .addSubcommand((sub) =>
@@ -180,6 +183,70 @@ export const data = new SlashCommandBuilder()
 
 function isOwner(userId: string): boolean {
   return userId === BOT_OWNER_ID
+}
+
+export async function autocomplete(interaction: AutocompleteInteraction) {
+  if (!isOwner(interaction.user.id)) return
+
+  const focused = interaction.options.getFocused(true)
+  const bannerType = interaction.options.getString('type')
+
+  if (focused.name === 'featured_id') {
+    const query = focused.value.toLowerCase()
+    const choices: { name: string; value: string }[] = []
+
+    if (bannerType === 'character' || !bannerType) {
+      for (const c of allCharacters.filter((c) => c.rarity === 5)) {
+        const label = `⭐5 ${c.emoji} ${c.name} (캐릭터)`
+        choices.push({ name: label.slice(0, 100), value: c.id })
+      }
+    }
+    if (bannerType === 'weapon' || !bannerType) {
+      for (const w of allWeapons.filter((w) => w.rarity === 5)) {
+        const label = `⭐5 ${w.emoji} ${w.name} (무기)`
+        choices.push({ name: label.slice(0, 100), value: w.id })
+      }
+    }
+
+    const filtered = choices
+      .filter(
+        (c) =>
+          c.name.toLowerCase().includes(query) ||
+          c.value.toLowerCase().includes(query),
+      )
+      .slice(0, 25)
+    await interaction.respond(filtered)
+  } else if (focused.name === 'featured_4stars') {
+    const query = focused.value.toLowerCase()
+    // Get the last ID being typed (after last comma)
+    const parts = focused.value.split(',')
+    const current = parts[parts.length - 1].trim().toLowerCase()
+    const prefix = parts.length > 1 ? parts.slice(0, -1).join(',') + ',' : ''
+
+    const choices: { name: string; value: string }[] = []
+
+    if (bannerType === 'character' || !bannerType) {
+      for (const c of allCharacters.filter((c) => c.rarity === 4)) {
+        const label = `⭐4 ${c.emoji} ${c.name}`
+        choices.push({ name: label.slice(0, 100), value: prefix + c.id })
+      }
+    }
+    if (bannerType === 'weapon' || !bannerType) {
+      for (const w of allWeapons.filter((w) => w.rarity === 4)) {
+        const label = `⭐4 ${w.emoji} ${w.name}`
+        choices.push({ name: label.slice(0, 100), value: prefix + w.id })
+      }
+    }
+
+    const filtered = choices
+      .filter(
+        (c) =>
+          c.name.toLowerCase().includes(current) ||
+          c.value.toLowerCase().includes(current),
+      )
+      .slice(0, 25)
+    await interaction.respond(filtered)
+  }
 }
 
 export async function execute(interaction: ChatInputCommandInteraction) {

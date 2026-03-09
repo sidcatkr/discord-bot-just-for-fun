@@ -1,5 +1,6 @@
 import {
   ChatInputCommandInteraction,
+  AutocompleteInteraction,
   EmbedBuilder,
   SlashCommandBuilder,
 } from 'discord.js'
@@ -48,7 +49,11 @@ export const data = new SlashCommandBuilder()
       .setName('info')
       .setDescription('캐릭터 상세 정보')
       .addStringOption((opt) =>
-        opt.setName('id').setDescription('캐릭터 ID').setRequired(true),
+        opt
+          .setName('id')
+          .setDescription('캐릭터 ID')
+          .setRequired(true)
+          .setAutocomplete(true),
       ),
   )
   .addSubcommand((sub) =>
@@ -56,7 +61,11 @@ export const data = new SlashCommandBuilder()
       .setName('levelup')
       .setDescription('캐릭터 경험치 재료 사용')
       .addStringOption((opt) =>
-        opt.setName('id').setDescription('캐릭터 ID').setRequired(true),
+        opt
+          .setName('id')
+          .setDescription('캐릭터 ID')
+          .setRequired(true)
+          .setAutocomplete(true),
       )
       .addIntegerOption((opt) =>
         opt
@@ -72,10 +81,18 @@ export const data = new SlashCommandBuilder()
       .setName('equip')
       .setDescription('캐릭터에 무기 장착')
       .addStringOption((opt) =>
-        opt.setName('id').setDescription('캐릭터 ID').setRequired(true),
+        opt
+          .setName('id')
+          .setDescription('캐릭터 ID')
+          .setRequired(true)
+          .setAutocomplete(true),
       )
       .addStringOption((opt) =>
-        opt.setName('weapon').setDescription('무기 ID').setRequired(true),
+        opt
+          .setName('weapon')
+          .setDescription('무기 ID')
+          .setRequired(true)
+          .setAutocomplete(true),
       ),
   )
   .addSubcommand((sub) =>
@@ -83,15 +100,80 @@ export const data = new SlashCommandBuilder()
       .setName('relic')
       .setDescription('캐릭터에 유물 장착')
       .addStringOption((opt) =>
-        opt.setName('id').setDescription('캐릭터 ID').setRequired(true),
+        opt
+          .setName('id')
+          .setDescription('캐릭터 ID')
+          .setRequired(true)
+          .setAutocomplete(true),
       )
       .addIntegerOption((opt) =>
         opt
           .setName('relic_id')
-          .setDescription('유물 번호 (inventory에서 확인)')
-          .setRequired(true),
+          .setDescription('유물 번호')
+          .setRequired(true)
+          .setAutocomplete(true),
       ),
   )
+
+export async function autocomplete(interaction: AutocompleteInteraction) {
+  const userId = interaction.user.id
+  const focused = interaction.options.getFocused(true)
+
+  if (focused.name === 'id') {
+    const owned = getOwnedCharacters(userId)
+    const query = focused.value.toLowerCase()
+    const choices = owned
+      .map((o) => {
+        const t = characterMap.get(o.character_id)
+        if (!t) return null
+        const label = `${'⭐'.repeat(t.rarity)} ${t.emoji} ${t.name} Lv.${o.level}`
+        return { name: label.slice(0, 100), value: t.id }
+      })
+      .filter(
+        (c): c is { name: string; value: string } =>
+          c !== null &&
+          (c.name.toLowerCase().includes(query) ||
+            c.value.toLowerCase().includes(query)),
+      )
+      .slice(0, 25)
+    await interaction.respond(choices)
+  } else if (focused.name === 'weapon') {
+    const owned = getOwnedWeapons(userId)
+    const query = focused.value.toLowerCase()
+    const choices = owned
+      .map((o) => {
+        const t = weaponMap.get(o.weapon_id)
+        if (!t) return null
+        const label = `${'⭐'.repeat(t.rarity)} ${t.emoji} ${t.name} R${o.refinement}`
+        return { name: label.slice(0, 100), value: t.id }
+      })
+      .filter(
+        (c): c is { name: string; value: string } =>
+          c !== null &&
+          (c.name.toLowerCase().includes(query) ||
+            c.value.toLowerCase().includes(query)),
+      )
+      .slice(0, 25)
+    await interaction.respond(choices)
+  } else if (focused.name === 'relic_id') {
+    const relics = getOwnedRelics(userId)
+    const query = focused.value.toLowerCase()
+    const choices = relics
+      .filter((r) => !r.equipped_by)
+      .map((r) => {
+        const setInfo = relicSetMap.get(r.set_id)
+        const label = `#${r.id} ${setInfo?.name ?? r.set_id} [${(slotLabels as Record<string, string>)[r.slot] ?? r.slot}] Lv.${r.level}`
+        return { name: label.slice(0, 100), value: r.id }
+      })
+      .filter(
+        (c) =>
+          c.name.toLowerCase().includes(query) ||
+          String(c.value).includes(query),
+      )
+      .slice(0, 25)
+    await interaction.respond(choices)
+  }
+}
 
 export async function execute(interaction: ChatInputCommandInteraction) {
   const userId = interaction.user.id

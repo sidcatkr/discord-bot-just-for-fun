@@ -1,5 +1,6 @@
 import {
   ChatInputCommandInteraction,
+  AutocompleteInteraction,
   EmbedBuilder,
   SlashCommandBuilder,
   ActionRowBuilder,
@@ -50,7 +51,11 @@ export const data = new SlashCommandBuilder()
       .setName('enter')
       .setDescription('던전에 입장합니다')
       .addStringOption((opt) =>
-        opt.setName('id').setDescription('던전 ID').setRequired(true),
+        opt
+          .setName('id')
+          .setDescription('던전 ID')
+          .setRequired(true)
+          .setAutocomplete(true),
       )
       .addIntegerOption((opt) =>
         opt
@@ -177,6 +182,26 @@ function simulateDungeonBattle(
     won: false,
     log,
     survivingParty: partyHP.filter((h) => h > 0).length,
+  }
+}
+
+export async function autocomplete(interaction: AutocompleteInteraction) {
+  const focused = interaction.options.getFocused(true)
+
+  if (focused.name === 'id') {
+    const query = focused.value.toLowerCase()
+    const choices = dungeons
+      .map((d) => ({
+        name: `${d.emoji} ${d.name}`,
+        value: d.id,
+      }))
+      .filter(
+        (c) =>
+          c.name.toLowerCase().includes(query) ||
+          c.value.toLowerCase().includes(query),
+      )
+      .slice(0, 25)
+    await interaction.respond(choices)
   }
 }
 

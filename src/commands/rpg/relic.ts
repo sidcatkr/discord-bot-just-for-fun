@@ -1,5 +1,6 @@
 import {
   ChatInputCommandInteraction,
+  AutocompleteInteraction,
   EmbedBuilder,
   SlashCommandBuilder,
 } from 'discord.js'
@@ -52,7 +53,11 @@ export const data = new SlashCommandBuilder()
       .setName('levelup')
       .setDescription('유물 강화 (골드 소모)')
       .addIntegerOption((opt) =>
-        opt.setName('id').setDescription('유물 ID').setRequired(true),
+        opt
+          .setName('id')
+          .setDescription('유물 ID')
+          .setRequired(true)
+          .setAutocomplete(true),
       )
       .addIntegerOption((opt) =>
         opt
@@ -67,10 +72,18 @@ export const data = new SlashCommandBuilder()
       .setName('equip')
       .setDescription('유물을 캐릭터에 장착')
       .addIntegerOption((opt) =>
-        opt.setName('id').setDescription('유물 ID').setRequired(true),
+        opt
+          .setName('id')
+          .setDescription('유물 ID')
+          .setRequired(true)
+          .setAutocomplete(true),
       )
       .addStringOption((opt) =>
-        opt.setName('character').setDescription('캐릭터 ID').setRequired(true),
+        opt
+          .setName('character')
+          .setDescription('캐릭터 ID')
+          .setRequired(true)
+          .setAutocomplete(true),
       ),
   )
   .addSubcommand((sub) =>
@@ -78,7 +91,11 @@ export const data = new SlashCommandBuilder()
       .setName('unequip')
       .setDescription('유물 장착 해제')
       .addIntegerOption((opt) =>
-        opt.setName('id').setDescription('유물 ID').setRequired(true),
+        opt
+          .setName('id')
+          .setDescription('유물 ID')
+          .setRequired(true)
+          .setAutocomplete(true),
       ),
   )
   .addSubcommand((sub) =>
@@ -86,7 +103,11 @@ export const data = new SlashCommandBuilder()
       .setName('discard')
       .setDescription('유물 분해 (골드 획득)')
       .addIntegerOption((opt) =>
-        opt.setName('id').setDescription('유물 ID').setRequired(true),
+        opt
+          .setName('id')
+          .setDescription('유물 ID')
+          .setRequired(true)
+          .setAutocomplete(true),
       ),
   )
   .addSubcommand((sub) =>
@@ -97,9 +118,58 @@ export const data = new SlashCommandBuilder()
       .setName('detail')
       .setDescription('유물 상세 정보')
       .addIntegerOption((opt) =>
-        opt.setName('id').setDescription('유물 ID').setRequired(true),
+        opt
+          .setName('id')
+          .setDescription('유물 ID')
+          .setRequired(true)
+          .setAutocomplete(true),
       ),
   )
+
+export async function autocomplete(interaction: AutocompleteInteraction) {
+  const userId = interaction.user.id
+  const focused = interaction.options.getFocused(true)
+
+  if (focused.name === 'id') {
+    const relics = getOwnedRelics(userId)
+    const query = focused.value.toLowerCase()
+    const choices = relics
+      .map((r) => {
+        const setInfo = relicSetMap.get(r.set_id)
+        const slotName = RELIC_SLOT_NAMES[r.slot as RelicSlot] ?? r.slot
+        const equipped = r.equipped_by
+          ? ` [${characterMap.get(r.equipped_by)?.name ?? '장착중'}]`
+          : ''
+        const label = `#${r.id} ${setInfo?.name ?? r.set_id} [${slotName}] Lv.${r.level}${equipped}`
+        return { name: label.slice(0, 100), value: r.id }
+      })
+      .filter(
+        (c) =>
+          c.name.toLowerCase().includes(query) ||
+          String(c.value).includes(query),
+      )
+      .slice(0, 25)
+    await interaction.respond(choices)
+  } else if (focused.name === 'character') {
+    const owned = getOwnedCharacters(userId)
+    const query = focused.value.toLowerCase()
+    const choices = owned
+      .map((o) => {
+        const t = characterMap.get(o.character_id)
+        if (!t) return null
+        const label = `${'⭐'.repeat(t.rarity)} ${t.emoji} ${t.name} Lv.${o.level}`
+        return { name: label.slice(0, 100), value: t.id }
+      })
+      .filter(
+        (c): c is { name: string; value: string } =>
+          c !== null &&
+          (c.name.toLowerCase().includes(query) ||
+            c.value.toLowerCase().includes(query)),
+      )
+      .slice(0, 25)
+    await interaction.respond(choices)
+  }
+}
 
 export async function execute(interaction: ChatInputCommandInteraction) {
   const sub = interaction.options.getSubcommand()

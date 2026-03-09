@@ -1,5 +1,6 @@
 import {
   ChatInputCommandInteraction,
+  AutocompleteInteraction,
   EmbedBuilder,
   SlashCommandBuilder,
   ActionRowBuilder,
@@ -37,7 +38,11 @@ export const data = new SlashCommandBuilder()
       .setName('equip')
       .setDescription('🐾 펫 장착')
       .addIntegerOption((opt) =>
-        opt.setName('id').setDescription('펫 ID 번호').setRequired(true),
+        opt
+          .setName('id')
+          .setDescription('펫 ID 번호')
+          .setRequired(true)
+          .setAutocomplete(true),
       ),
   )
   .addSubcommand((sub) => sub.setName('unequip').setDescription('🚫 펫 해제'))
@@ -493,6 +498,30 @@ const rarityColors: Record<string, number> = {
 }
 
 const gachaUsers = new Set<string>()
+
+export async function autocomplete(interaction: AutocompleteInteraction) {
+  const guildId = interaction.guildId!
+  const userId = interaction.user.id
+  const focused = interaction.options.getFocused(true)
+
+  if (focused.name === 'id') {
+    const pets = getPets(userId, guildId)
+    const query = focused.value.toLowerCase()
+    const choices = pets
+      .map((p) => {
+        const equipped = p.equipped ? ' [장착중]' : ''
+        const label = `#${p.id} ${p.pet_emoji} ${p.pet_name} (${rarityLabels[p.pet_rarity]})${equipped}`
+        return { name: label.slice(0, 100), value: p.id }
+      })
+      .filter(
+        (c) =>
+          c.name.toLowerCase().includes(query) ||
+          String(c.value).includes(query),
+      )
+      .slice(0, 25)
+    await interaction.respond(choices)
+  }
+}
 
 export async function execute(interaction: ChatInputCommandInteraction) {
   const sub = interaction.options.getSubcommand()

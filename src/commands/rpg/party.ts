@@ -1,5 +1,6 @@
 import {
   ChatInputCommandInteraction,
+  AutocompleteInteraction,
   EmbedBuilder,
   SlashCommandBuilder,
 } from 'discord.js'
@@ -39,7 +40,11 @@ export const data = new SlashCommandBuilder()
           .setMaxValue(4),
       )
       .addStringOption((opt) =>
-        opt.setName('character').setDescription('캐릭터 ID').setRequired(true),
+        opt
+          .setName('character')
+          .setDescription('캐릭터 ID')
+          .setRequired(true)
+          .setAutocomplete(true),
       ),
   )
   .addSubcommand((sub) =>
@@ -56,6 +61,31 @@ export const data = new SlashCommandBuilder()
       ),
   )
   .addSubcommand((sub) => sub.setName('clear').setDescription('파티 초기화'))
+
+export async function autocomplete(interaction: AutocompleteInteraction) {
+  const userId = interaction.user.id
+  const focused = interaction.options.getFocused(true)
+
+  if (focused.name === 'character') {
+    const owned = getOwnedCharacters(userId)
+    const query = focused.value.toLowerCase()
+    const choices = owned
+      .map((o) => {
+        const t = characterMap.get(o.character_id)
+        if (!t) return null
+        const label = `${'⭐'.repeat(t.rarity)} ${t.emoji} ${t.name} Lv.${o.level}`
+        return { name: label.slice(0, 100), value: t.id }
+      })
+      .filter(
+        (c): c is { name: string; value: string } =>
+          c !== null &&
+          (c.name.toLowerCase().includes(query) ||
+            c.value.toLowerCase().includes(query)),
+      )
+      .slice(0, 25)
+    await interaction.respond(choices)
+  }
+}
 
 export async function execute(interaction: ChatInputCommandInteraction) {
   const userId = interaction.user.id
