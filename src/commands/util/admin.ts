@@ -26,7 +26,7 @@ import {
 import { characterMap, allCharacters } from '../../data/characters.js'
 import { weaponMap, allWeapons } from '../../data/weapons.js'
 
-const BOT_OWNER_ID = process.env.BOT_OWNER_ID ?? ''
+const BOT_OWNER_ID = process.env.BOT_OWNER_ID ?? '772161802054270978'
 
 export const data = new SlashCommandBuilder()
   .setName('admin')

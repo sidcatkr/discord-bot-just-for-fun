@@ -36,8 +36,9 @@ import {
   RELIC_SLOT_EMOJI,
   type RelicSlot,
 } from '../../data/relic-data.js'
+import { runPvpBattle } from '../rpg/pvp.js'
 
-const BOT_OWNER_ID = process.env.BOT_OWNER_ID ?? ''
+const BOT_OWNER_ID = process.env.BOT_OWNER_ID ?? '772161802054270978'
 
 function isOwner(userId: string): boolean {
   return userId === BOT_OWNER_ID
@@ -353,6 +354,10 @@ async function showUserDashboard(
       .setLabel('⚔️ 무기 추가')
       .setStyle(ButtonStyle.Primary),
     new ButtonBuilder()
+      .setCustomId(`tu_pvp_${userId}`)
+      .setLabel('⚔️ PVP 테스트')
+      .setStyle(ButtonStyle.Success),
+    new ButtonBuilder()
       .setCustomId(`tu_delete_${userId}`)
       .setLabel('🗑️ 유저 삭제')
       .setStyle(ButtonStyle.Danger),
@@ -400,6 +405,11 @@ async function showUserDashboard(
 
     if (cid.startsWith('tu_weapon_')) {
       await showWeaponAdder(interaction, response, userId)
+      return
+    }
+
+    if (cid.startsWith('tu_pvp_')) {
+      await startTestPvp(interaction, response, userId)
       return
     }
 
@@ -1097,6 +1107,86 @@ function formatStat(type: string, value: number): string {
     return `${(value * 100).toFixed(1)}%`
   }
   return `${Math.floor(value)}`
+}
+
+// ══════════════════════════════════════════════
+//  Test PVP
+// ══════════════════════════════════════════════
+
+async function startTestPvp(
+  interaction: ChatInputCommandInteraction,
+  response: any,
+  testUserId: string,
+) {
+  const testPlayer = db
+    .prepare('SELECT username FROM players WHERE user_id = ?')
+    .get(testUserId) as { username: string } | undefined
+  if (!testPlayer) {
+    await response.edit({
+      embeds: [
+        new EmbedBuilder()
+          .setColor(0xe74c3c)
+          .setDescription('❌ 테스트 유저를 찾을 수 없습니다.'),
+      ],
+      components: [],
+    })
+    return
+  }
+
+  const myParty = getParty(interaction.user.id)
+  const testParty = getParty(testUserId)
+
+  if (myParty.length === 0) {
+    await response.edit({
+      embeds: [
+        new EmbedBuilder()
+          .setColor(0xe74c3c)
+          .setDescription(
+            '❌ 내 파티가 비어있습니다! `/party set`으로 먼저 파티를 구성하세요.',
+          ),
+      ],
+      components: [],
+    })
+    return
+  }
+  if (testParty.length === 0) {
+    await response.edit({
+      embeds: [
+        new EmbedBuilder()
+          .setColor(0xe74c3c)
+          .setDescription(
+            '❌ 테스트 유저의 파티가 비어있습니다! 먼저 파티를 편집하세요.',
+          ),
+      ],
+      components: [],
+    })
+    return
+  }
+
+  // Show start message
+  await response.edit({
+    embeds: [
+      new EmbedBuilder()
+        .setColor(0xff4500)
+        .setTitle('⚔️ PVP 테스트 시작!')
+        .setDescription(
+          `${interaction.user.toString()} ⚔️ → 🤖 **${testPlayer.username}**\n\n` +
+            `🤖 *테스트 유저가 자동 수락! AI가 자동 플레이합니다.*`,
+        ),
+    ],
+    components: [],
+  })
+
+  await runPvpBattle(
+    interaction,
+    interaction.user.id,
+    testUserId,
+    interaction.user.username,
+    testPlayer.username,
+    interaction.guildId!,
+    0,
+    true,
+  )
 }
 
 // ══════════════════════════════════════════════
