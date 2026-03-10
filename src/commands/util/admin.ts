@@ -190,9 +190,12 @@ export const data = new SlashCommandBuilder()
   .addSubcommand((sub) =>
     sub
       .setName('testsetup')
-      .setDescription('테스트용 유저 세팅 (캐릭터+무기+파티+레벨+골드)')
-      .addUserOption((opt) =>
-        opt.setName('user').setDescription('대상 유저').setRequired(true),
+      .setDescription('테스트용 가상 유저 생성 (캐릭터+무기+파티+레벨+골드)')
+      .addStringOption((opt) =>
+        opt
+          .setName('name')
+          .setDescription('가상 유저 이름 (기본: TestUser)')
+          .setMaxLength(32),
       )
       .addIntegerOption((opt) =>
         opt
@@ -750,14 +753,17 @@ export async function execute(interaction: ChatInputCommandInteraction) {
     return
   }
 
-  // ── testsetup (create test user with party) ──
+  // ── testsetup (create virtual test user with party) ──
   if (sub === 'testsetup') {
-    const target = interaction.options.getUser('user', true)
+    const testName = interaction.options.getString('name') ?? 'TestUser'
     const targetLevel = interaction.options.getInteger('level') ?? 60
     const guildId = interaction.guildId ?? ''
 
-    // Ensure player profile exists
-    getOrCreatePlayer(target.id, guildId, target.username)
+    // Generate a fake user ID (prefix with 'test_' to distinguish)
+    const fakeId = `test_${Date.now()}`
+
+    // Create virtual player profile
+    getOrCreatePlayer(fakeId, guildId, testName)
 
     // Test party: 4 characters covering different roles
     const testCharacters = [
@@ -771,17 +777,17 @@ export async function execute(interaction: ChatInputCommandInteraction) {
     const totalXp =
       targetLevel > 1 ? (150 * ((targetLevel - 1) * targetLevel)) / 2 : 0
 
-    clearParty(target.id)
+    clearParty(fakeId)
 
     const results: string[] = []
     for (let i = 0; i < testCharacters.length; i++) {
       const { charId, weaponId } = testCharacters[i]
 
-      addCharacter(target.id, charId)
-      if (totalXp > 0) addCharacterXp(target.id, charId, totalXp)
-      addWeapon(target.id, weaponId)
-      equipWeaponToCharacter(target.id, weaponId, charId)
-      setPartySlot(target.id, i + 1, charId)
+      addCharacter(fakeId, charId)
+      if (totalXp > 0) addCharacterXp(fakeId, charId, totalXp)
+      addWeapon(fakeId, weaponId)
+      equipWeaponToCharacter(fakeId, weaponId, charId)
+      setPartySlot(fakeId, i + 1, charId)
 
       const cData = characterMap.get(charId)
       const wData = weaponMap.get(weaponId)
@@ -794,15 +800,16 @@ export async function execute(interaction: ChatInputCommandInteraction) {
     const goldStmt = db.prepare(
       'UPDATE players SET gold = gold + ? WHERE user_id = ?',
     )
-    goldStmt.run(100000, target.id)
-    addMaterial(target.id, 'char_xp_material', 500)
-    addMaterial(target.id, 'weapon_xp_material', 500)
+    goldStmt.run(100000, fakeId)
+    addMaterial(fakeId, 'char_xp_material', 500)
+    addMaterial(fakeId, 'weapon_xp_material', 500)
 
     const embed = new EmbedBuilder()
       .setColor(0x9b59b6)
-      .setTitle('🔧 테스트 세팅 완료')
+      .setTitle('🔧 테스트 유저 생성 완료')
       .setDescription(
-        `**대상:** ${target}\n` +
+        `**유저명:** ${testName}\n` +
+          `**ID:** \`${fakeId}\`\n` +
           `**레벨:** ${targetLevel}\n\n` +
           `**파티 구성:**\n${results.join('\n')}\n\n` +
           `**지급:** 💰 100,000G · 📖 경험서 500 · ⚒️ 무기경험석 500`,
