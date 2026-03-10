@@ -30,12 +30,16 @@ import {
   applySynergies,
   type ActionType,
 } from '../../data/combat-engine.js'
+import db from '../../db/database.js'
 
 export const data = new SlashCommandBuilder()
   .setName('pvp')
   .setDescription('⚔️ 파티 PVP! 스타레일 스타일 턴제 전투!')
   .addUserOption((opt) =>
-    opt.setName('target').setDescription('대결 상대').setRequired(true),
+    opt.setName('target').setDescription('대결 상대'),
+  )
+  .addStringOption((opt) =>
+    opt.setName('test_id').setDescription('테스트 유저 ID (test_ 접두사)'),
   )
   .addIntegerOption((opt) =>
     opt
@@ -65,27 +69,65 @@ const victoryQuotes = [
 
 export async function execute(interaction: ChatInputCommandInteraction) {
   const user = interaction.user
-  const target = interaction.options.getUser('target', true)
+  const target = interaction.options.getUser('target')
+  const testId = interaction.options.getString('test_id')
   const bet = interaction.options.getInteger('bet') ?? 0
   const guildId = interaction.guildId!
 
-  if (target.id === user.id) {
+  // Determine target info
+  let targetId: string
+  let targetName: string
+  let isTestUser = false
+
+  if (testId) {
+    if (!testId.startsWith('test_')) {
+      await interaction.reply({
+        content: '❌ 테스트 유저 ID는 `test_`로 시작해야 합니다.',
+        ephemeral: true,
+      })
+      return
+    }
+    // Verify test user exists in DB
+    const testPlayer = db
+      .prepare('SELECT username FROM players WHERE user_id = ?')
+      .get(testId) as { username: string } | undefined
+    if (!testPlayer) {
+      await interaction.reply({
+        content: '❌ 존재하지 않는 테스트 유저입니다. `/admin testsetup`으로 먼저 생성하세요.',
+        ephemeral: true,
+      })
+      return
+    }
+    targetId = testId
+    targetName = testPlayer.username
+    isTestUser = true
+  } else if (target) {
+    if (target.id === user.id) {
+      await interaction.reply({
+        content: '🤦 자기 자신과는 PVP할 수 없습니다!',
+        ephemeral: true,
+      })
+      return
+    }
+    if (target.bot) {
+      await interaction.reply({
+        content: '🤖 봇에게는 파티가 없어 PVP가 불가능합니다!',
+        ephemeral: true,
+      })
+      return
+    }
+    targetId = target.id
+    targetName = target.username
+  } else {
     await interaction.reply({
-      content: '🤦 자기 자신과는 PVP할 수 없습니다!',
-      ephemeral: true,
-    })
-    return
-  }
-  if (target.bot) {
-    await interaction.reply({
-      content: '🤖 봇에게는 파티가 없어 PVP가 불가능합니다!',
+      content: '❌ 대결 상대(`target`) 또는 테스트 유저 ID(`test_id`)를 입력하세요.',
       ephemeral: true,
     })
     return
   }
 
   const userKey = `${user.id}:${guildId}`
-  const targetKey = `${target.id}:${guildId}`
+  const targetKey = `${targetId}:${guildId}`
   if (pvpUsers.has(userKey) || pvpUsers.has(targetKey)) {
     await interaction.reply({
       content: '⚔️ 이미 PVP 중입니다!',
@@ -96,7 +138,7 @@ export async function execute(interaction: ChatInputCommandInteraction) {
 
   // Check parties
   const userParty = getParty(user.id)
-  const targetParty = getParty(target.id)
+  const targetParty = getParty(targetId)
 
   if (userParty.length === 0) {
     await interaction.reply({
@@ -115,7 +157,6 @@ export async function execute(interaction: ChatInputCommandInteraction) {
 
   if (bet > 0) {
     const attacker = getOrCreatePlayer(user.id, guildId, user.username)
-    const defender = getOrCreatePlayer(target.id, guildId, target.username)
     if (attacker.gold < bet) {
       await interaction.reply({
         content: `💰 골드가 부족합니다! (보유: ${attacker.gold}G)`,
@@ -123,75 +164,91 @@ export async function execute(interaction: ChatInputCommandInteraction) {
       })
       return
     }
-    if (defender.gold < bet) {
-      await interaction.reply({
-        content: `💰 상대방의 골드가 부족합니다!`,
-        ephemeral: true,
-      })
-      return
+    if (!isTestUser) {
+      const defender = getOrCreatePlayer(targetId, guildId, targetName)
+      if (defender.gold < bet) {
+        await interaction.reply({
+          content: `💰 상대방의 골드가 부족합니다!`,
+          ephemeral: true,
+        })
+        return
+      }
     }
   }
 
-  // Challenge accept/decline
-  const acceptRow = new ActionRowBuilder<ButtonBuilder>().addComponents(
-    new ButtonBuilder()
-      .setCustomId('pvp_accept')
-      .setLabel('⚔️ 수락')
-      .setStyle(ButtonStyle.Danger),
-    new ButtonBuilder()
-      .setCustomId('pvp_decline')
-      .setLabel('🏃 거절')
-      .setStyle(ButtonStyle.Secondary),
-  )
-
-  const challengeEmbed = new EmbedBuilder()
-    .setColor(0xff4500)
-    .setTitle('⚔️ PVP 파티 대결 신청!')
-    .setDescription(
-      `${user.toString()} ⚔️ → ${target.toString()}\n\n` +
-        (bet > 0 ? `💰 배팅: **${bet}G**\n\n` : '') +
-        `${pick(pvpTaunts)}\n\n` +
-        `${target.toString()}님, 수락하시겠습니까? (30초)`,
+  if (isTestUser) {
+    // Test user auto-accepts — skip challenge flow
+    const startEmbed = new EmbedBuilder()
+      .setColor(0xff4500)
+      .setTitle('⚔️ PVP 파티 대결! (vs 테스트 유저)')
+      .setDescription(
+        `${user.toString()} ⚔️ → 🤖 **${targetName}**\n\n` +
+          (bet > 0 ? `💰 배팅: **${bet}G**\n\n` : '') +
+          `🤖 *테스트 유저가 자동 수락했습니다!*`,
+      )
+    await interaction.reply({ embeds: [startEmbed], fetchReply: true })
+  } else {
+    // Challenge accept/decline for real users
+    const acceptRow = new ActionRowBuilder<ButtonBuilder>().addComponents(
+      new ButtonBuilder()
+        .setCustomId('pvp_accept')
+        .setLabel('⚔️ 수락')
+        .setStyle(ButtonStyle.Danger),
+      new ButtonBuilder()
+        .setCustomId('pvp_decline')
+        .setLabel('🏃 거절')
+        .setStyle(ButtonStyle.Secondary),
     )
 
-  const response = await interaction.reply({
-    embeds: [challengeEmbed],
-    components: [acceptRow],
-    fetchReply: true,
-  })
+    const challengeEmbed = new EmbedBuilder()
+      .setColor(0xff4500)
+      .setTitle('⚔️ PVP 파티 대결 신청!')
+      .setDescription(
+        `${user.toString()} ⚔️ → <@${targetId}>\n\n` +
+          (bet > 0 ? `💰 배팅: **${bet}G**\n\n` : '') +
+          `${pick(pvpTaunts)}\n\n` +
+          `<@${targetId}>님, 수락하시겠습니까? (30초)`,
+      )
 
-  try {
-    const accepted = await response.awaitMessageComponent({
-      componentType: ComponentType.Button,
-      filter: (i) => i.user.id === target.id,
-      time: 30000,
+    const response = await interaction.reply({
+      embeds: [challengeEmbed],
+      components: [acceptRow],
+      fetchReply: true,
     })
 
-    if (accepted.customId === 'pvp_decline') {
-      await accepted.update({
+    try {
+      const accepted = await response.awaitMessageComponent({
+        componentType: ComponentType.Button,
+        filter: (i) => i.user.id === targetId,
+        time: 30000,
+      })
+
+      if (accepted.customId === 'pvp_decline') {
+        await accepted.update({
+          embeds: [
+            new EmbedBuilder()
+              .setColor(0x808080)
+              .setTitle('⚔️ PVP 거절됨')
+              .setDescription(`<@${targetId}>이(가) 도망갔습니다! 🏃💨`),
+          ],
+          components: [],
+        })
+        return
+      }
+
+      await accepted.deferUpdate()
+    } catch {
+      await interaction.editReply({
         embeds: [
           new EmbedBuilder()
             .setColor(0x808080)
-            .setTitle('⚔️ PVP 거절됨')
-            .setDescription(`${target.toString()}이(가) 도망갔습니다! 🏃💨`),
+            .setTitle('⚔️ PVP 시간 초과')
+            .setDescription('30초 안에 응답하지 않아 대결이 취소되었습니다.'),
         ],
         components: [],
       })
       return
     }
-
-    await accepted.deferUpdate()
-  } catch {
-    await interaction.editReply({
-      embeds: [
-        new EmbedBuilder()
-          .setColor(0x808080)
-          .setTitle('⚔️ PVP 시간 초과')
-          .setDescription('30초 안에 응답하지 않아 대결이 취소되었습니다.'),
-      ],
-      components: [],
-    })
-    return
   }
 
   // Start PVP
@@ -200,18 +257,19 @@ export async function execute(interaction: ChatInputCommandInteraction) {
 
   if (bet > 0) {
     addGold(user.id, guildId, -bet)
-    addGold(target.id, guildId, -bet)
+    if (!isTestUser) addGold(targetId, guildId, -bet)
   }
 
   try {
     await runPvpBattle(
       interaction,
       user.id,
-      target.id,
+      targetId,
       user.username,
-      target.username,
+      targetName,
       guildId,
       bet,
+      isTestUser,
     )
   } finally {
     pvpUsers.delete(userKey)
@@ -227,6 +285,7 @@ async function runPvpBattle(
   player2Name: string,
   guildId: string,
   bet: number,
+  isTestTarget = false,
 ) {
   // Build combatants from parties
   const p1Party = getParty(player1Id)
@@ -329,26 +388,40 @@ async function runPvpBattle(
       components: [actionRow],
     })
 
-    // Wait for player input
+    // Wait for player input (or auto-play for test users)
     let actionType: ActionType
-    try {
-      const msg = await interaction.fetchReply()
-      const buttonPress = await msg.awaitMessageComponent({
-        componentType: ComponentType.Button,
-        filter: (i) => i.user.id === controllingPlayerId,
-        time: 25000,
-      })
+    const isAutoTurn = isTestTarget && controllingPlayerId === player2Id
 
-      if (buttonPress.customId.startsWith('pvp_ult')) {
+    if (isAutoTurn) {
+      // AI auto-play: prefer ultimate > skill > basic
+      await sleep(800)
+      if (!ultDisabled) {
         actionType = 'ultimate'
-      } else if (buttonPress.customId.startsWith('pvp_skill')) {
+      } else if (!skillDisabled) {
         actionType = 'skill'
       } else {
         actionType = 'basic'
       }
-      await buttonPress.deferUpdate()
-    } catch {
-      actionType = 'basic'
+    } else {
+      try {
+        const msg = await interaction.fetchReply()
+        const buttonPress = await msg.awaitMessageComponent({
+          componentType: ComponentType.Button,
+          filter: (i) => i.user.id === controllingPlayerId,
+          time: 25000,
+        })
+
+        if (buttonPress.customId.startsWith('pvp_ult')) {
+          actionType = 'ultimate'
+        } else if (buttonPress.customId.startsWith('pvp_skill')) {
+          actionType = 'skill'
+        } else {
+          actionType = 'basic'
+        }
+        await buttonPress.deferUpdate()
+      } catch {
+        actionType = 'basic'
+      }
     }
 
     // Execute action via combat engine
@@ -381,13 +454,15 @@ async function runPvpBattle(
   const winnerName = state.winner === 1 ? player1Name : player2Name
   const loserName = state.winner === 1 ? player2Name : player1Name
 
-  // Rewards
+  // Rewards (skip for test users)
   const xpReward = random(50, 120)
   const goldReward = bet > 0 ? bet * 2 : random(30, 80)
-  addXp(winnerId, guildId, xpReward)
-  addGold(winnerId, guildId, goldReward)
+  if (!winnerId.startsWith('test_')) {
+    addXp(winnerId, guildId, xpReward)
+    addGold(winnerId, guildId, goldReward)
+    addTitle(winnerId, guildId, '⚔️ PVP 승리자')
+  }
   logBattle(guildId, player1Id, player2Id, winnerId, xpReward, goldReward)
-  addTitle(winnerId, guildId, '⚔️ PVP 승리자')
 
   // Build final result
   const survivors = state.combatants.filter(
