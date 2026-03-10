@@ -433,11 +433,30 @@ export async function execute(interaction: ChatInputCommandInteraction) {
                 })),
               ),
           )
-        await i.reply({
+        const selectReply = await i.reply({
           content: '⚔️ 장착할 무기를 선택하세요:',
           components: [selectRow],
           ephemeral: true,
+          fetchReply: true,
         })
+        try {
+          const selection = await selectReply.awaitMessageComponent({
+            componentType: ComponentType.StringSelect,
+            filter: (si) => si.user.id === userId,
+            time: 30000,
+          })
+          const weaponId = selection.values[0]
+          equipWeaponToCharacter(userId, weaponId, charId)
+          const wt = weaponMap.get(weaponId)
+          await selection.update({
+            content: `✅ ${wt?.emoji ?? ''} **${wt?.name ?? weaponId}** 장착 완료!`,
+            components: [],
+          })
+          const { embed: newEmbed } = buildInfoEmbed()
+          await interaction.editReply({ embeds: [newEmbed] })
+        } catch {
+          // timeout — ignore
+        }
       } else if (i.customId === `char_relic_${charId}`) {
         // Show relic select dropdown
         const allRelics = getOwnedRelics(userId)
@@ -477,34 +496,29 @@ export async function execute(interaction: ChatInputCommandInteraction) {
                 }),
               ),
           )
-        await i.reply({
+        const relicReply = await i.reply({
           content: '🏺 장착할 유물을 선택하세요:',
           components: [selectRow],
           ephemeral: true,
+          fetchReply: true,
         })
-      } else if (i.customId === `char_weapon_select_${charId}`) {
-        if (!i.isStringSelectMenu()) return
-        const weaponId = i.values[0]
-        equipWeaponToCharacter(userId, weaponId, charId)
-        const wt = weaponMap.get(weaponId)
-        await i.update({
-          content: `✅ ${wt?.emoji ?? ''} **${wt?.name ?? weaponId}** 장착 완료!`,
-          components: [],
-        })
-
-        const { embed: newEmbed } = buildInfoEmbed()
-        await interaction.editReply({ embeds: [newEmbed] })
-      } else if (i.customId === `char_relic_select_${charId}`) {
-        if (!i.isStringSelectMenu()) return
-        const relicId = parseInt(i.values[0])
-        equipRelic(userId, relicId, charId)
-        await i.update({
-          content: `✅ 유물 #${relicId} 장착 완료!`,
-          components: [],
-        })
-
-        const { embed: newEmbed } = buildInfoEmbed()
-        await interaction.editReply({ embeds: [newEmbed] })
+        try {
+          const selection = await relicReply.awaitMessageComponent({
+            componentType: ComponentType.StringSelect,
+            filter: (si) => si.user.id === userId,
+            time: 30000,
+          })
+          const relicId = parseInt(selection.values[0])
+          equipRelic(userId, relicId, charId)
+          await selection.update({
+            content: `✅ 유물 #${relicId} 장착 완료!`,
+            components: [],
+          })
+          const { embed: newEmbed } = buildInfoEmbed()
+          await interaction.editReply({ embeds: [newEmbed] })
+        } catch {
+          // timeout — ignore
+        }
       } else if (i.customId === `char_refresh_${charId}`) {
         const { embed: newEmbed } = buildInfoEmbed()
         const newMats = getMaterials(userId)
