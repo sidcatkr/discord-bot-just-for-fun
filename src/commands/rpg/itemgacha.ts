@@ -225,7 +225,7 @@ export async function execute(interaction: ChatInputCommandInteraction) {
       })
     } else if (item.rarity === 'common') {
       const sadMsgs = [
-        '🗑️ ...이걸 50G 주고 뽑았다고?',
+        '🗑️ ...이걸 300G 주고 뽑았다고?',
         '📉 골드가 아깝다...',
         '🤡 확률은 거짓말을 하지 않습니다.',
       ]

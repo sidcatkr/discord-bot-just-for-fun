@@ -55,6 +55,7 @@ function getTestUsers(): { user_id: string; username: string; gold: number }[] {
 export const data = new SlashCommandBuilder()
   .setName('testuser')
   .setDescription('🤖 테스트 유저 관리 (관리자 전용)')
+  .setDefaultMemberPermissions(0)
 
 export async function execute(interaction: ChatInputCommandInteraction) {
   if (!isOwner(interaction.user.id)) {

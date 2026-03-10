@@ -65,6 +65,41 @@ const victoryQuotes = [
   'GG WP',
 ]
 
+// ── Dramatic combat reactions ──
+const critReactions = [
+  '🔥 **통렬한 일격!!**',
+  '⚡ **약점을 꿰뚫었다!!**',
+  '💢 **아프다!! 이건 진짜 아프다!!**',
+  '🌟 **완벽한 타이밍!!**',
+  '😱 **이런 데미지가 가능해?!**',
+]
+
+const killReactions = [
+  '💀 **적 전사!! 전장에서 퇴장!!**',
+  '☠️ **ELIMINATED!!**',
+  '⚰️ **잔인한 처형이다!!**',
+  '🪦 **여기가 무덤이 되었다...**',
+  '👻 **성불하세요...**',
+]
+
+const ultReactions = [
+  '🌀 **필살기 발동!!!**',
+  '💫 **궁극기!! 모든 것을 걸었다!!**',
+  '🔮 **절체절명의 한 방!!**',
+  '⭐ **이것이 진정한 힘이다!!**',
+]
+
+const closeCallReactions = [
+  '😰 **간발의 차이로 살아남았다!!**',
+  '💦 **위험했다... HP가 바닥이다!**',
+  '🫣 **숨이 멎을 뻔했다!!**',
+]
+
+const dotDeathReactions = [
+  '🔥 **상태이상이 목숨을 앗아갔다!!**',
+  '💔 **독에 쓰러졌다... 비참한 최후...**',
+]
+
 export async function execute(interaction: ChatInputCommandInteraction) {
   const user = interaction.user
   const target = interaction.options.getUser('target')
@@ -78,6 +113,14 @@ export async function execute(interaction: ChatInputCommandInteraction) {
   let isTestUser = false
 
   if (testId) {
+    const BOT_OWNER_ID = process.env.BOT_OWNER_ID ?? ''
+    if (user.id !== BOT_OWNER_ID) {
+      await interaction.reply({
+        content: '❌ 테스트 유저 대전은 봇 소유자만 사용할 수 있습니다.',
+        ephemeral: true,
+      })
+      return
+    }
     if (!testId.startsWith('test_')) {
       await interaction.reply({
         content: '❌ 테스트 유저 ID는 `test_`로 시작해야 합니다.',
@@ -327,16 +370,29 @@ async function runPvpBattle(
     syn1.length > 0 ? syn1.map((s) => `${s.emoji} ${s.name}`).join(' ') : '없음'
   const synText2 =
     syn2.length > 0 ? syn2.map((s) => `${s.emoji} ${s.name}`).join(' ') : '없음'
-  const initialEmbed = buildBattleEmbed(state, player1Name, player2Name, bet, [
-    `**시너지:**`,
-    `🔴 ${player1Name}: ${synText1}`,
-    `🔵 ${player2Name}: ${synText2}`,
-    `\n⚔️ **전투 개시!**`,
-  ])
+  const initialEmbed = buildBattleEmbed(
+    state,
+    player1Name,
+    player2Name,
+    bet,
+    [
+      `**시너지:**`,
+      `🔴 ${player1Name}: ${synText1}`,
+      `🔵 ${player2Name}: ${synText2}`,
+      `\n⚔️ **전투 개시!**`,
+    ],
+    undefined,
+    undefined,
+    '🟢 초반전',
+  )
   await interaction.editReply({ embeds: [initialEmbed], components: [] })
   await sleep(2000)
 
   const allLines: string[] = []
+  let team1Kills = 0
+  let team2Kills = 0
+  let lastKillTeam: 1 | 2 | null = null
+  let killStreak = 0
 
   // Combat loop — interactive turns
   while (!state.isFinished) {
@@ -352,28 +408,57 @@ async function runPvpBattle(
     const ultDisabled = !canUseUltimate(actor)
     const sp = actor.team === 1 ? state.team1SP : state.team2SP
     const energyPct = Math.floor((actor.energy / actor.maxEnergy) * 100)
+    const energyBar = buildBar(actor.energy, actor.maxEnergy, 8)
 
-    const actionRow = new ActionRowBuilder<ButtonBuilder>().addComponents(
+    // Battle phase
+    const phase = getBattlePhase(state)
+
+    // Active buttons for controlling player
+    const activeRow = new ActionRowBuilder<ButtonBuilder>().addComponents(
       new ButtonBuilder()
         .setCustomId(`pvp_basic_${state.turnCount}`)
         .setLabel(`🗡️ ${actor.basic.name}`)
         .setStyle(ButtonStyle.Secondary),
       new ButtonBuilder()
         .setCustomId(`pvp_skill_${state.turnCount}`)
-        .setLabel(`✨ ${actor.skill.name}`)
+        .setLabel(`✨ ${actor.skill.name} (SP ${sp})`)
         .setStyle(ButtonStyle.Primary)
         .setDisabled(skillDisabled),
       new ButtonBuilder()
         .setCustomId(`pvp_ult_${state.turnCount}`)
-        .setLabel(`💥 ${actor.ultimate.name}`)
+        .setLabel(`💥 ${actor.ultimate.name} (${energyPct}%)`)
         .setStyle(ButtonStyle.Danger)
         .setDisabled(ultDisabled),
     )
 
-    const turnInfo =
-      `\n\n🎯 **${actor.emoji} ${actor.name}**의 차례 (${controllingPlayerName})` +
-      `\nSP: ${sp}/${state.maxSP} | ⚡에너지: ${energyPct}%` +
-      `\n*25초 안에 선택하세요! (시간 초과 시 일반 공격)*`
+    // Disabled buttons shown to opponent (waiting indicator)
+    const waitRow = new ActionRowBuilder<ButtonBuilder>().addComponents(
+      new ButtonBuilder()
+        .setCustomId(`pvp_wait_1_${state.turnCount}`)
+        .setLabel(`⏳ ${controllingPlayerName}의 턴...`)
+        .setStyle(ButtonStyle.Secondary)
+        .setDisabled(true),
+      new ButtonBuilder()
+        .setCustomId(`pvp_wait_2_${state.turnCount}`)
+        .setLabel('행동 대기 중')
+        .setStyle(ButtonStyle.Secondary)
+        .setDisabled(true),
+    )
+
+    // Check for low HP drama
+    const lowHpWarning = getLowHpWarning(state, actor)
+
+    const teamColor = actor.team === 1 ? 0xe74c3c : 0x3498db
+    const teamIcon = actor.team === 1 ? '🔴' : '🔵'
+    const turnBanner =
+      `\n\n━━━━━━━━━━━━━━━━━━━\n` +
+      `${teamIcon} **${actor.emoji} ${actor.name}**의 차례!\n` +
+      `┃ 조종: **${controllingPlayerName}**\n` +
+      `┃ SP: ${'🔷'.repeat(Math.min(sp, 5))}${'⬛'.repeat(Math.max(0, 5 - sp))} ${sp}/${state.maxSP}\n` +
+      `┃ ⚡ ${energyBar} ${energyPct}%\n` +
+      `━━━━━━━━━━━━━━━━━━━\n` +
+      (lowHpWarning ? `${lowHpWarning}\n` : '') +
+      `*25초 안에 선택! (시간 초과 → 일반 공격)*`
 
     const turnEmbed = buildBattleEmbed(
       state,
@@ -381,11 +466,15 @@ async function runPvpBattle(
       player2Name,
       bet,
       allLines,
-      turnInfo,
+      turnBanner,
+      teamColor,
+      phase,
+      team1Kills,
+      team2Kills,
     )
     await interaction.editReply({
       embeds: [turnEmbed],
-      components: [actionRow],
+      components: [activeRow, waitRow],
     })
 
     // Wait for player input (or auto-play for test users)
@@ -426,11 +515,88 @@ async function runPvpBattle(
 
     // Execute action via combat engine
     const result = executeAction(state, actor, actionType)
+
+    // Enrich log lines with action type indicator & dramatic commentary
+    const actionIcon =
+      actionType === 'ultimate' ? '💥' : actionType === 'skill' ? '✨' : '🗡️'
+
+    // Detect events from lines
+    const joinedResult = result.lines.join(' ')
+    const hasCrit = joinedResult.includes('치명타')
+    const hasKill =
+      joinedResult.includes('처치') || joinedResult.includes('전사')
+    const hasDotDeath = joinedResult.includes('으로 전사')
+
+    // Add ultimate reaction
+    if (actionType === 'ultimate') {
+      allLines.push(pick(ultReactions))
+    }
+
+    // Add action lines with icon
+    if (result.lines.length > 0) {
+      result.lines[0] = `${actionIcon} ${result.lines[0]}`
+    }
     allLines.push(...result.lines)
 
-    // Keep log manageable (last 10 lines)
-    if (allLines.length > 10) {
-      allLines.splice(0, allLines.length - 10)
+    // Add dramatic commentary
+    if (hasKill) {
+      // Track kills
+      if (actor.team === 1) team1Kills++
+      else team2Kills++
+
+      // Kill streaks
+      if (lastKillTeam === actor.team) {
+        killStreak++
+        if (killStreak >= 3)
+          allLines.push(`🔥🔥🔥 **${killStreak}연속 킬!! 미쳤다!!**`)
+        else if (killStreak >= 2) allLines.push(`⚡⚡ **더블 킬!!**`)
+      } else {
+        killStreak = 1
+        lastKillTeam = actor.team
+      }
+
+      if (hasDotDeath) {
+        allLines.push(pick(dotDeathReactions))
+      } else {
+        allLines.push(pick(killReactions))
+      }
+    } else if (hasCrit) {
+      allLines.push(pick(critReactions))
+    }
+
+    // Close call detection (target survived with <15% HP)
+    if (!hasKill && !hasCrit) {
+      const enemyTeam = actor.team === 1 ? 2 : 1
+      const lowestEnemy = state.combatants
+        .filter((c) => c.team === enemyTeam && c.isAlive)
+        .sort(
+          (a, b) => a.currentHP / a.stats.maxHP - b.currentHP / b.stats.maxHP,
+        )[0]
+      if (
+        lowestEnemy &&
+        lowestEnemy.currentHP / lowestEnemy.stats.maxHP < 0.15
+      ) {
+        allLines.push(pick(closeCallReactions))
+      }
+    }
+
+    // Keep log manageable (last 14 lines)
+    if (allLines.length > 14) {
+      allLines.splice(0, allLines.length - 14)
+    }
+
+    // Impact color based on event significance
+    let impactColor: number
+    if (hasKill) {
+      impactColor = 0x000000 // black flash for kills
+    } else if (hasCrit) {
+      impactColor = 0xffd700 // gold flash for crits
+    } else if (actionType === 'ultimate') {
+      impactColor = 0xff0000
+    } else if (actionType === 'skill') {
+      impactColor = 0x9b59b6
+    } else {
+      impactColor = 0x95a5a6
     }
 
     // Update display after action
@@ -440,15 +606,21 @@ async function runPvpBattle(
       player2Name,
       bet,
       allLines,
+      undefined,
+      impactColor,
+      phase,
+      team1Kills,
+      team2Kills,
     )
     await interaction.editReply({ embeds: [updateEmbed], components: [] })
 
     if (result.finished) break
-    await sleep(1000)
+    // Dynamic pacing: longer pause for dramatic events
+    await sleep(hasKill ? 1800 : hasCrit ? 1500 : 1200)
   }
 
-  // Battle finished
-  await sleep(1500)
+  // Battle finished — dramatic conclusion
+  await sleep(2000)
 
   const winnerId = state.winner === 1 ? player1Id : player2Id
   const winnerName = state.winner === 1 ? player1Name : player2Name
@@ -464,33 +636,79 @@ async function runPvpBattle(
   }
   logBattle(guildId, player1Id, player2Id, winnerId, xpReward, goldReward)
 
-  // Build final result
+  // Build epic final result
   const survivors = state.combatants.filter(
     (c) => c.team === state.winner && c.isAlive,
   )
   const survivorText = survivors
-    .map(
-      (c) =>
-        `${c.emoji}${c.name}(${Math.round((c.currentHP / c.stats.maxHP) * 100)}%)`,
-    )
-    .join(' ')
+    .map((c) => {
+      const hpPct = Math.round((c.currentHP / c.stats.maxHP) * 100)
+      const hpBar = buildBar(c.currentHP, c.stats.maxHP, 6)
+      return `${c.emoji} **${c.name}** ${hpBar} ${hpPct}%`
+    })
+    .join('\n')
 
-  const resultLines = [
-    ...allLines.slice(-6),
-    `\n🏆 **${winnerName} 승리!** (vs ${loserName})`,
-    `✨ XP +${xpReward} | 💰 +${goldReward}G`,
-    ...(bet > 0 ? [`💰 배팅금 **${bet * 2}G** 획득!`] : []),
-    `생존: ${survivorText}`,
-    `\n*"${pick(victoryQuotes)}"*`,
+  // Find MVP (survivor with highest HP% or last one standing)
+  const mvp = survivors.sort(
+    (a, b) => b.currentHP / b.stats.maxHP - a.currentHP / a.stats.maxHP,
+  )[0]
+
+  const winnerKills = state.winner === 1 ? team1Kills : team2Kills
+  const loserKills = state.winner === 1 ? team2Kills : team1Kills
+
+  // Determine battle verdict
+  let verdict: string
+  if (state.turnCount <= 10) {
+    verdict = '⚡ 전광석화!! 압도적 실력 차이!'
+  } else if (
+    survivors.length === 1 &&
+    survivors[0].currentHP / survivors[0].stats.maxHP < 0.2
+  ) {
+    verdict = '🫨 간발의 차이!! 극적인 역전극!'
+  } else if (winnerKills >= 4) {
+    verdict = '👑 완벽한 승리! 상대를 압살했다!'
+  } else {
+    verdict = `*"${pick(victoryQuotes)}"*`
+  }
+
+  const winnerIcon = state.winner === 1 ? '🔴' : '🔵'
+  const finalLines = [
+    `━━━━━━━━━━━━━━━━━━━━━━━━`,
+    `${winnerIcon} 🏆 **${winnerName}** 승리!!`,
+    `━━━━━━━━━━━━━━━━━━━━━━━━`,
+    ``,
+    `**📊 전투 기록:**`,
+    `┃ 🔴 ${player1Name}: ${team1Kills}킬`,
+    `┃ 🔵 ${player2Name}: ${team2Kills}킬`,
+    `┃ 총 ${state.turnCount}턴`,
+    ``,
+    `**🎖️ MVP: ${mvp.emoji} ${mvp.name}**`,
+    ``,
+    `**💰 보상:**`,
+    `┃ ✨ XP +${xpReward}`,
+    `┃ 💰 +${goldReward}G`,
+    ...(bet > 0 ? [`┃ 🎰 배팅 수익 **${bet * 2}G**!`] : []),
+    ``,
+    `**🛡️ 생존자:**`,
+    survivorText,
+    ``,
+    verdict,
   ]
 
   const finalEmbed = new EmbedBuilder()
-    .setColor(state.winner === 1 ? 0x2ecc71 : 0xe74c3c)
-    .setTitle(`⚔️ PVP 결과: ${player1Name} vs ${player2Name}`)
-    .setDescription(resultLines.join('\n'))
-    .setFooter({ text: `총 ${state.turnCount}턴` })
+    .setColor(state.winner === 1 ? 0x2ecc71 : 0x3498db)
+    .setTitle(`⚔️ PVP 결과 — ${player1Name} vs ${player2Name}`)
+    .setDescription(finalLines.join('\n'))
+    .setFooter({
+      text: `${state.turnCount}턴 | ${team1Kills + team2Kills}킬 | ${survivors.length}명 생존`,
+    })
     .setTimestamp()
   await interaction.editReply({ embeds: [finalEmbed], components: [] })
+}
+
+function buildBar(current: number, max: number, length: number = 10): string {
+  const filled = Math.round((current / max) * length)
+  return '█'.repeat(filled) + '░'.repeat(Math.max(0, length - filled))
 }
 
 function buildBattleEmbed(
@@ -500,22 +718,61 @@ function buildBattleEmbed(
   bet: number,
   log: string[],
   turnInfo?: string,
+  color?: number,
+  phase?: string,
+  team1Kills?: number,
+  team2Kills?: number,
 ): EmbedBuilder {
   const team1Status = getTeamStatus(state, 1)
   const team2Status = getTeamStatus(state, 2)
   const betText = bet > 0 ? `\n💰 배팅: ${bet * 2}G (승자 독식)` : ''
+
+  // Kill scoreboard
+  const k1 = team1Kills ?? 0
+  const k2 = team2Kills ?? 0
+  const scoreText = k1 + k2 > 0 ? `\n⚔️ **킬 스코어:** 🔴 ${k1} — ${k2} 🔵` : ''
+
   const logText =
-    log.length > 0 ? `\n\n**전투 로그:**\n${log.slice(-8).join('\n')}` : ''
+    log.length > 0 ? `\n\n**📜 전투 로그:**\n${log.slice(-12).join('\n')}` : ''
+
+  const phaseText = phase ? ` | ${phase}` : ''
 
   return new EmbedBuilder()
-    .setColor(0xff4500)
+    .setColor(color ?? 0xff4500)
     .setTitle(`⚔️ PVP: ${p1Name} vs ${p2Name}`)
     .setDescription(
       `**🔴 ${p1Name}**\n${team1Status}\n\n` +
         `**🔵 ${p2Name}**\n${team2Status}` +
         betText +
+        scoreText +
         logText +
         (turnInfo ?? ''),
     )
-    .setFooter({ text: `턴: ${state.turnCount}/${state.maxTurns}` })
+    .setFooter({
+      text: `턴: ${state.turnCount}/${state.maxTurns}${phaseText}`,
+    })
+}
+
+// ── Helper functions ──
+
+function getBattlePhase(state: ReturnType<typeof initCombat>): string {
+  const totalAlive = state.combatants.filter((c) => c.isAlive).length
+  const totalChars = state.combatants.length
+  if (state.turnCount <= 5) return '🟢 초반전'
+  if (totalAlive <= Math.ceil(totalChars / 2)) return '🔴 종반전'
+  if (state.turnCount >= 15 || totalAlive < totalChars) return '🟡 중반전'
+  return '🟢 초반전'
+}
+
+function getLowHpWarning(
+  state: ReturnType<typeof initCombat>,
+  actor: ReturnType<typeof getNextActor>,
+): string | null {
+  if (!actor) return null
+  const hpPct = actor.currentHP / actor.stats.maxHP
+  if (hpPct <= 0.1)
+    return `🚨 **위험!! ${actor.emoji} ${actor.name} HP ${Math.round(hpPct * 100)}%!!**`
+  if (hpPct <= 0.25)
+    return `⚠️ *${actor.emoji} ${actor.name} HP 위험! (${Math.round(hpPct * 100)}%)*`
+  return null
 }

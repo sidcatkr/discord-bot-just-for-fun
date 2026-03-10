@@ -31,6 +31,7 @@ const BOT_OWNER_ID = process.env.BOT_OWNER_ID ?? ''
 export const data = new SlashCommandBuilder()
   .setName('admin')
   .setDescription('🔧 관리자 전용 데이터베이스 관리 명령어')
+  .setDefaultMemberPermissions(0)
   .addSubcommand((sub) =>
     sub
       .setName('gold')
