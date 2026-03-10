@@ -410,9 +410,7 @@ async function showUserDashboard(
     await response
       .edit({
         embeds: [
-          new EmbedBuilder()
-            .setColor(0x808080)
-            .setTitle('🤖 시간 초과'),
+          new EmbedBuilder().setColor(0x808080).setTitle('🤖 시간 초과'),
         ],
         components: [],
       })
@@ -978,7 +976,8 @@ async function showCharRelicEditor(
   const slots: RelicSlot[] = ['head', 'hands', 'body', 'feet']
   const slotLines = slots.map((slot) => {
     const relic = relics.find((r) => r.slot === slot)
-    if (!relic) return `${RELIC_SLOT_EMOJI[slot]} **${RELIC_SLOT_NAMES[slot]}**: (비어있음)`
+    if (!relic)
+      return `${RELIC_SLOT_EMOJI[slot]} **${RELIC_SLOT_NAMES[slot]}**: (비어있음)`
     const setDef = relicSetMap.get(relic.set_id)
     const subs: { type: string; value: number }[] = JSON.parse(relic.sub_stats)
     const subText = subs

@@ -35,9 +35,7 @@ import db from '../../db/database.js'
 export const data = new SlashCommandBuilder()
   .setName('pvp')
   .setDescription('⚔️ 파티 PVP! 스타레일 스타일 턴제 전투!')
-  .addUserOption((opt) =>
-    opt.setName('target').setDescription('대결 상대'),
-  )
+  .addUserOption((opt) => opt.setName('target').setDescription('대결 상대'))
   .addStringOption((opt) =>
     opt.setName('test_id').setDescription('테스트 유저 ID (test_ 접두사)'),
   )
@@ -93,7 +91,8 @@ export async function execute(interaction: ChatInputCommandInteraction) {
       .get(testId) as { username: string } | undefined
     if (!testPlayer) {
       await interaction.reply({
-        content: '❌ 존재하지 않는 테스트 유저입니다. `/admin testsetup`으로 먼저 생성하세요.',
+        content:
+          '❌ 존재하지 않는 테스트 유저입니다. `/admin testsetup`으로 먼저 생성하세요.',
         ephemeral: true,
       })
       return
@@ -120,7 +119,8 @@ export async function execute(interaction: ChatInputCommandInteraction) {
     targetName = target.username
   } else {
     await interaction.reply({
-      content: '❌ 대결 상대(`target`) 또는 테스트 유저 ID(`test_id`)를 입력하세요.',
+      content:
+        '❌ 대결 상대(`target`) 또는 테스트 유저 ID(`test_id`)를 입력하세요.',
       ephemeral: true,
     })
     return
