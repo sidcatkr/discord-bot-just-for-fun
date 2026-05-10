@@ -2,7 +2,11 @@ services:
   bot:
     build: .
     restart: unless-stopped
-    env_file: .env
+    environment:
+      DISCORD_TOKEN: ${DISCORD_TOKEN}
+      CLIENT_ID: ${CLIENT_ID}
+      GUILD_ID: ${GUILD_ID:-}
+      BOT_OWNER_ID: ${BOT_OWNER_ID}
     volumes:
       # Persist SQLite database on host
       - ./data:/app/data
