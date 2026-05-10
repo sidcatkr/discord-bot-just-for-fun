@@ -1,5 +1,6 @@
 services:
   bot:
+    image: discord-bot:latest
     build: .
     restart: unless-stopped
     environment:
