@@ -1,7 +1,7 @@
 services:
   bot:
-    image: discord-bot:latest
-    build: .
+    image: ghcr.io/sidcatkr/discord-bot-just-for-fun:latest
+    pull_policy: always
     restart: unless-stopped
     environment:
       DISCORD_TOKEN: ${DISCORD_TOKEN}
