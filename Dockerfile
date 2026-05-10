@@ -16,9 +16,10 @@ COPY package.json pnpm-lock.yaml ./
 # Install dependencies (builds better-sqlite3 inside container)
 RUN pnpm install --frozen-lockfile
 
-# Copy source
+# Copy source + assets (fonts for canvas rendering)
 COPY tsconfig.json ./
 COPY src/ ./src/
+COPY assets/ ./assets/
 
 # Persist the SQLite DB outside the container
 VOLUME ["/app/data"]

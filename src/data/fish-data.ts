@@ -1,21 +1,54 @@
 import { getUserFortune } from '../db/helpers.js'
 
+// ══════════════════════════════════════════════════════════
+//  Types
+// ══════════════════════════════════════════════════════════
+
+export type FishRarity =
+  | 'common'
+  | 'uncommon'
+  | 'rare'
+  | 'epic'
+  | 'legendary'
+  | 'mythic'
+
+export type Habitat =
+  | 'freshwater'
+  | 'saltwater'
+  | 'deep_sea'
+  | 'tropical'
+  | 'arctic'
+  | 'mythical'
+
+export type Season = 'spring' | 'summer' | 'autumn' | 'winter' | 'all'
+
+export type TimeOfDay = 'day' | 'night' | 'dusk' | 'dawn' | 'any'
+
+export type BaitType = 'worm' | 'shrimp' | 'lure' | 'pellet' | 'special' | 'any'
+
 export interface FishType {
-  name: string
+  id: string // stable slug (primary key for collection)
+  name: string // 한글 이름
+  scientificName?: string // Latin (real fish only)
   emoji: string
-  rarity: 'common' | 'uncommon' | 'rare' | 'epic' | 'legendary' | 'mythic'
-  minSize: number // cm
-  maxSize: number
-  baseValue: number // gold per cm
+  rarity: FishRarity
+  habitat: Habitat[]
+  season: Season[]
+  timeOfDay: TimeOfDay[]
+  baitTypes: BaitType[]
+  weatherAffinity?: string[] // weather names that boost catch rate
+  size: { min: number; max: number; mean: number; stdDev: number } // cm
+  weightCoeff: number // kg per (length/100m)^3 — shape factor
+  baseValuePerKg: number // gold per kg
   description: string
-  category: 'freshwater' | 'saltwater' | 'deep_sea' | 'tropical' | 'mythical'
+  loreFlavor?: string
 }
 
 export interface TrashType {
   name: string
   emoji: string
-  disposalCost: number // gold to dispose
-  pollutionAmount: number // how much it pollutes (0-10)
+  disposalCost: number
+  pollutionAmount: number
   description: string
 }
 
@@ -46,6 +79,19 @@ export interface SeaMonster {
   description: string
 }
 
+export interface DangerousCatch {
+  name: string
+  emoji: string
+  damage: number // 0 = instant kill
+  goldLoss: number
+  description: string
+  deathMessage: string
+}
+
+// ══════════════════════════════════════════════════════════
+//  Sea monsters
+// ══════════════════════════════════════════════════════════
+
 export const seaMonsters: SeaMonster[] = [
   {
     name: '거대 문어',
@@ -66,13 +112,13 @@ export const seaMonsters: SeaMonster[] = [
     description: '안개 속에서 유령선이 나타났다!',
   },
   {
-    name: '바다뽀',
+    name: '바다뱀',
     emoji: '🐍',
     hp: 40,
     attack: 25,
     goldReward: 180,
     xpReward: 40,
-    description: '물 속에서 거대한 뽀이 뜨아올랐다!',
+    description: '물 속에서 거대한 뱀이 떠올랐다!',
   },
   {
     name: '보석 거북',
@@ -81,7 +127,7 @@ export const seaMonsters: SeaMonster[] = [
     attack: 8,
     goldReward: 500,
     xpReward: 80,
-    description: '등께에 보석을 지닌 거대 거북이! 잡으면 대박!',
+    description: '등껍질에 보석을 지닌 거대 거북이! 잡으면 대박!',
   },
   {
     name: '폭풍 상어',
@@ -94,7 +140,7 @@ export const seaMonsters: SeaMonster[] = [
   },
   {
     name: '크라켄',
-    emoji: '🦣',
+    emoji: '🦑',
     hp: 120,
     attack: 35,
     goldReward: 600,
@@ -102,13 +148,13 @@ export const seaMonsters: SeaMonster[] = [
     description: '전설의 해양 괴물 크라켄이 나타났다!!',
   },
   {
-    name: '저주받은 닫',
+    name: '저주받은 닻',
     emoji: '⚓',
     hp: 30,
     attack: 10,
     goldReward: 100,
     xpReward: 30,
-    description: '닛이 혼자 움직이고 있다...?!',
+    description: '닻이 혼자 움직이고 있다...?!',
   },
   {
     name: '심해 용왕',
@@ -125,1746 +171,9 @@ export function rollSeaMonster(): SeaMonster {
   return seaMonsters[Math.floor(Math.random() * seaMonsters.length)]
 }
 
-// ══════════════════════════════════════
-//  TRASH ITEMS (caught during fishing)
-// ══════════════════════════════════════
-
-export const trashPool: TrashType[] = [
-  {
-    name: '빈 깡통',
-    emoji: '🥫',
-    disposalCost: 5,
-    pollutionAmount: 2,
-    description: '녹슨 깡통이다',
-  },
-  {
-    name: '비닐봉지',
-    emoji: '🛍️',
-    disposalCost: 3,
-    pollutionAmount: 3,
-    description: '환경 오염의 주범',
-  },
-  {
-    name: '오래된 장화',
-    emoji: '👢',
-    disposalCost: 8,
-    pollutionAmount: 2,
-    description: '누가 버린 걸까',
-  },
-  {
-    name: '깨진 유리병',
-    emoji: '🍾',
-    disposalCost: 10,
-    pollutionAmount: 4,
-    description: '위험! 물고기들이 다칠 수 있다',
-  },
-  {
-    name: '타이어',
-    emoji: '🛞',
-    disposalCost: 30,
-    pollutionAmount: 8,
-    description: '거대한 폐타이어',
-  },
-  {
-    name: '폐배터리',
-    emoji: '🔋',
-    disposalCost: 25,
-    pollutionAmount: 10,
-    description: '수질을 심각하게 오염시킨다',
-  },
-  {
-    name: '스티로폼',
-    emoji: '📦',
-    disposalCost: 5,
-    pollutionAmount: 3,
-    description: '잘게 부서져 미세플라스틱이 된다',
-  },
-  {
-    name: '떠다니는 쓰레기 봉투',
-    emoji: '🗑️',
-    disposalCost: 4,
-    pollutionAmount: 2,
-    description: '거북이가 해파리로 착각한다',
-  },
-  {
-    name: '녹슨 낚싯바늘 뭉치',
-    emoji: '🪝',
-    disposalCost: 7,
-    pollutionAmount: 3,
-    description: '이전 낚시꾼의 흔적',
-  },
-  {
-    name: '폐유통',
-    emoji: '🛢️',
-    disposalCost: 50,
-    pollutionAmount: 10,
-    description: '기름이 새고 있다! 긴급 처리 필요!',
-  },
-  {
-    name: '낡은 신발',
-    emoji: '👟',
-    disposalCost: 6,
-    pollutionAmount: 2,
-    description: '한 짝만 있다',
-  },
-  {
-    name: '플라스틱 빨대',
-    emoji: '🥤',
-    disposalCost: 2,
-    pollutionAmount: 2,
-    description: '바다거북의 천적',
-  },
-  {
-    name: '부서진 우산',
-    emoji: '☂️',
-    disposalCost: 8,
-    pollutionAmount: 3,
-    description: '강풍에 날아온 듯',
-  },
-  {
-    name: '엉킨 낚싯줄',
-    emoji: '🧵',
-    disposalCost: 5,
-    pollutionAmount: 4,
-    description: '물고기가 감길 수 있어 위험하다',
-  },
-  {
-    name: '침몰한 보트 조각',
-    emoji: '🚣',
-    disposalCost: 40,
-    pollutionAmount: 6,
-    description: '페인트 성분이 물에 녹고 있다',
-  },
-]
-
-// ══════════════════════════════════════
-//  FISH DATA — 200+ species
-// ══════════════════════════════════════
-
-const handcraftedFish: FishType[] = [
-  // ═══════════════════════════════════
-  //  COMMON (40 species)
-  // ═══════════════════════════════════
-  // -- 담수어 --
-  {
-    name: '붕어',
-    emoji: '🐟',
-    rarity: 'common',
-    minSize: 5,
-    maxSize: 25,
-    baseValue: 2,
-    description: '흔하디흔한 붕어',
-    category: 'freshwater',
-  },
-  {
-    name: '미꾸라지',
-    emoji: '🐍',
-    rarity: 'common',
-    minSize: 8,
-    maxSize: 20,
-    baseValue: 2,
-    description: '미끌미끌한 민물고기',
-    category: 'freshwater',
-  },
-  {
-    name: '잉어',
-    emoji: '🐟',
-    rarity: 'common',
-    minSize: 15,
-    maxSize: 50,
-    baseValue: 3,
-    description: '연못의 터줏대감',
-    category: 'freshwater',
-  },
-  {
-    name: '피라미',
-    emoji: '🐠',
-    rarity: 'common',
-    minSize: 5,
-    maxSize: 15,
-    baseValue: 2,
-    description: '개울에서 잡는 작은 물고기',
-    category: 'freshwater',
-  },
-  {
-    name: '송사리',
-    emoji: '🐟',
-    rarity: 'common',
-    minSize: 2,
-    maxSize: 8,
-    baseValue: 1,
-    description: '정말 작은 민물고기',
-    category: 'freshwater',
-  },
-  {
-    name: '빙어',
-    emoji: '🐟',
-    rarity: 'common',
-    minSize: 5,
-    maxSize: 15,
-    baseValue: 2,
-    description: '겨울 빙어낚시의 주인공',
-    category: 'freshwater',
-  },
-  {
-    name: '버들치',
-    emoji: '🐟',
-    rarity: 'common',
-    minSize: 5,
-    maxSize: 12,
-    baseValue: 1,
-    description: '맑은 계곡의 작은 물고기',
-    category: 'freshwater',
-  },
-  {
-    name: '납자루',
-    emoji: '🐟',
-    rarity: 'common',
-    minSize: 4,
-    maxSize: 10,
-    baseValue: 1,
-    description: '조개에 알을 낳는 신기한 물고기',
-    category: 'freshwater',
-  },
-  {
-    name: '참붕어',
-    emoji: '🐟',
-    rarity: 'common',
-    minSize: 4,
-    maxSize: 12,
-    baseValue: 1,
-    description: '흔한 민물 잡어',
-    category: 'freshwater',
-  },
-  {
-    name: '돌고기',
-    emoji: '🐟',
-    rarity: 'common',
-    minSize: 5,
-    maxSize: 15,
-    baseValue: 2,
-    description: '돌 틈에 사는 물고기',
-    category: 'freshwater',
-  },
-  {
-    name: '밀어',
-    emoji: '🐟',
-    rarity: 'common',
-    minSize: 3,
-    maxSize: 10,
-    baseValue: 1,
-    description: '바닥에 붙어 사는 작은 물고기',
-    category: 'freshwater',
-  },
-  {
-    name: '모래무지',
-    emoji: '🐟',
-    rarity: 'common',
-    minSize: 5,
-    maxSize: 18,
-    baseValue: 2,
-    description: '모래 바닥을 좋아한다',
-    category: 'freshwater',
-  },
-  {
-    name: '블루길',
-    emoji: '🐠',
-    rarity: 'common',
-    minSize: 8,
-    maxSize: 25,
-    baseValue: 2,
-    description: '외래종이지만 흔한 물고기',
-    category: 'freshwater',
-  },
-  {
-    name: '배스',
-    emoji: '🐟',
-    rarity: 'common',
-    minSize: 15,
-    maxSize: 40,
-    baseValue: 3,
-    description: '루어낚시의 대상어',
-    category: 'freshwater',
-  },
-  {
-    name: '올챙이',
-    emoji: '🐸',
-    rarity: 'common',
-    minSize: 1,
-    maxSize: 5,
-    baseValue: 1,
-    description: '이건 물고기가 아닌데...',
-    category: 'freshwater',
-  },
-  // -- 해수어 --
-  {
-    name: '고등어',
-    emoji: '🐟',
-    rarity: 'common',
-    minSize: 20,
-    maxSize: 40,
-    baseValue: 3,
-    description: '구워 먹으면 맛있다',
-    category: 'saltwater',
-  },
-  {
-    name: '멸치',
-    emoji: '🐟',
-    rarity: 'common',
-    minSize: 3,
-    maxSize: 10,
-    baseValue: 1,
-    description: '작지만 영양가 높다',
-    category: 'saltwater',
-  },
-  {
-    name: '전어',
-    emoji: '🐟',
-    rarity: 'common',
-    minSize: 15,
-    maxSize: 30,
-    baseValue: 2,
-    description: '가을 바다의 별미',
-    category: 'saltwater',
-  },
-  {
-    name: '정어리',
-    emoji: '🐟',
-    rarity: 'common',
-    minSize: 10,
-    maxSize: 25,
-    baseValue: 2,
-    description: '통조림감',
-    category: 'saltwater',
-  },
-  {
-    name: '꽁치',
-    emoji: '🐟',
-    rarity: 'common',
-    minSize: 20,
-    maxSize: 35,
-    baseValue: 2,
-    description: '길쭉한 게 특징',
-    category: 'saltwater',
-  },
-  {
-    name: '학꽁치',
-    emoji: '🐟',
-    rarity: 'common',
-    minSize: 15,
-    maxSize: 35,
-    baseValue: 2,
-    description: '주둥이가 길고 날씬하다',
-    category: 'saltwater',
-  },
-  {
-    name: '전갱이',
-    emoji: '🐟',
-    rarity: 'common',
-    minSize: 15,
-    maxSize: 30,
-    baseValue: 2,
-    description: '방파제 낚시의 단골손님',
-    category: 'saltwater',
-  },
-  {
-    name: '숭어',
-    emoji: '🐟',
-    rarity: 'common',
-    minSize: 20,
-    maxSize: 60,
-    baseValue: 3,
-    description: '항구에서도 쉽게 볼 수 있다',
-    category: 'saltwater',
-  },
-  {
-    name: '망둥어',
-    emoji: '🐟',
-    rarity: 'common',
-    minSize: 5,
-    maxSize: 15,
-    baseValue: 1,
-    description: '갯벌의 작은 물고기',
-    category: 'saltwater',
-  },
-  {
-    name: '볼락',
-    emoji: '🐟',
-    rarity: 'common',
-    minSize: 10,
-    maxSize: 30,
-    baseValue: 3,
-    description: '바위틈에 사는 인기 어종',
-    category: 'saltwater',
-  },
-  {
-    name: '노래미',
-    emoji: '🐟',
-    rarity: 'common',
-    minSize: 15,
-    maxSize: 35,
-    baseValue: 2,
-    description: '방파제 단골 친구',
-    category: 'saltwater',
-  },
-  {
-    name: '쥐노래미',
-    emoji: '🐟',
-    rarity: 'common',
-    minSize: 10,
-    maxSize: 30,
-    baseValue: 2,
-    description: '갯바위에서 자주 낚인다',
-    category: 'saltwater',
-  },
-  {
-    name: '보리멸',
-    emoji: '🐟',
-    rarity: 'common',
-    minSize: 10,
-    maxSize: 25,
-    baseValue: 2,
-    description: '모래 해변의 작은 물고기',
-    category: 'saltwater',
-  },
-  {
-    name: '망상어',
-    emoji: '🐟',
-    rarity: 'common',
-    minSize: 10,
-    maxSize: 25,
-    baseValue: 2,
-    description: '잡어의 대명사',
-    category: 'saltwater',
-  },
-  {
-    name: '쏨뱅이',
-    emoji: '🐟',
-    rarity: 'common',
-    minSize: 10,
-    maxSize: 25,
-    baseValue: 2,
-    description: '가시가 많으니 조심',
-    category: 'saltwater',
-  },
-  {
-    name: '해초 뭉치',
-    emoji: '🌿',
-    rarity: 'common',
-    minSize: 10,
-    maxSize: 30,
-    baseValue: 1,
-    description: '물고기라고 부르기 민망하다',
-    category: 'saltwater',
-  },
-  // -- 열대 --
-  {
-    name: '구피',
-    emoji: '🐠',
-    rarity: 'common',
-    minSize: 2,
-    maxSize: 6,
-    baseValue: 2,
-    description: '화려한 꼬리의 관상어',
-    category: 'tropical',
-  },
-  {
-    name: '네온테트라',
-    emoji: '🐠',
-    rarity: 'common',
-    minSize: 2,
-    maxSize: 4,
-    baseValue: 2,
-    description: '형광 파란줄이 빛난다',
-    category: 'tropical',
-  },
-  {
-    name: '엔젤피쉬',
-    emoji: '🐠',
-    rarity: 'common',
-    minSize: 5,
-    maxSize: 15,
-    baseValue: 3,
-    description: '천사 같은 지느러미',
-    category: 'tropical',
-  },
-  {
-    name: '몰리',
-    emoji: '🐠',
-    rarity: 'common',
-    minSize: 3,
-    maxSize: 10,
-    baseValue: 2,
-    description: '쉽게 번식하는 관상어',
-    category: 'tropical',
-  },
-  {
-    name: '소드테일',
-    emoji: '🐠',
-    rarity: 'common',
-    minSize: 5,
-    maxSize: 12,
-    baseValue: 2,
-    description: '칼 같은 꼬리를 가진 물고기',
-    category: 'tropical',
-  },
-  {
-    name: '플래티',
-    emoji: '🐠',
-    rarity: 'common',
-    minSize: 3,
-    maxSize: 7,
-    baseValue: 2,
-    description: '형형색색 작은 관상어',
-    category: 'tropical',
-  },
-  {
-    name: '제브라 다니오',
-    emoji: '🐠',
-    rarity: 'common',
-    minSize: 3,
-    maxSize: 5,
-    baseValue: 1,
-    description: '줄무늬 열대어',
-    category: 'tropical',
-  },
-  {
-    name: '코리도라스',
-    emoji: '🐟',
-    rarity: 'common',
-    minSize: 3,
-    maxSize: 8,
-    baseValue: 2,
-    description: '바닥 청소부 메기',
-    category: 'tropical',
-  },
-
-  // ═══════════════════════════════════
-  //  UNCOMMON (40 species)
-  // ═══════════════════════════════════
-  // -- 담수어 --
-  {
-    name: '쏘가리',
-    emoji: '🐟',
-    rarity: 'uncommon',
-    minSize: 20,
-    maxSize: 50,
-    baseValue: 7,
-    description: '민물 고급 어종, 매운탕 재료',
-    category: 'freshwater',
-  },
-  {
-    name: '메기',
-    emoji: '🐟',
-    rarity: 'uncommon',
-    minSize: 30,
-    maxSize: 80,
-    baseValue: 5,
-    description: '수염이 특징인 야행성 물고기',
-    category: 'freshwater',
-  },
-  {
-    name: '가물치',
-    emoji: '🐟',
-    rarity: 'uncommon',
-    minSize: 30,
-    maxSize: 80,
-    baseValue: 6,
-    description: '담수의 포식자',
-    category: 'freshwater',
-  },
-  {
-    name: '무지개송어',
-    emoji: '🐠',
-    rarity: 'uncommon',
-    minSize: 20,
-    maxSize: 60,
-    baseValue: 6,
-    description: '무지개빛 비늘이 아름답다',
-    category: 'freshwater',
-  },
-  {
-    name: '산천어',
-    emoji: '🐟',
-    rarity: 'uncommon',
-    minSize: 15,
-    maxSize: 30,
-    baseValue: 7,
-    description: '맑은 계곡의 귀한 물고기',
-    category: 'freshwater',
-  },
-  {
-    name: '쉬리',
-    emoji: '🐟',
-    rarity: 'uncommon',
-    minSize: 5,
-    maxSize: 12,
-    baseValue: 5,
-    description: '깨끗한 물에서만 사는 지표종',
-    category: 'freshwater',
-  },
-  {
-    name: '꾸구리',
-    emoji: '🐟',
-    rarity: 'uncommon',
-    minSize: 5,
-    maxSize: 15,
-    baseValue: 6,
-    description: '한국 고유종 민물고기',
-    category: 'freshwater',
-  },
-  {
-    name: '어름치',
-    emoji: '🐟',
-    rarity: 'uncommon',
-    minSize: 15,
-    maxSize: 40,
-    baseValue: 8,
-    description: '천연기념물급 민물고기',
-    category: 'freshwater',
-  },
-  {
-    name: '황어',
-    emoji: '🐟',
-    rarity: 'uncommon',
-    minSize: 20,
-    maxSize: 50,
-    baseValue: 5,
-    description: '봄에 금빛으로 변하는 물고기',
-    category: 'freshwater',
-  },
-  {
-    name: '자라',
-    emoji: '🐢',
-    rarity: 'uncommon',
-    minSize: 15,
-    maxSize: 40,
-    baseValue: 8,
-    description: '민물 거북이, 손가락 조심!',
-    category: 'freshwater',
-  },
-  {
-    name: '민물가재',
-    emoji: '🦞',
-    rarity: 'uncommon',
-    minSize: 5,
-    maxSize: 15,
-    baseValue: 7,
-    description: '깨끗한 하천의 지표종',
-    category: 'freshwater',
-  },
-  // -- 해수어 --
-  {
-    name: '농어',
-    emoji: '🐟',
-    rarity: 'uncommon',
-    minSize: 30,
-    maxSize: 80,
-    baseValue: 5,
-    description: '바다낚시의 인기 어종',
-    category: 'saltwater',
-  },
-  {
-    name: '방어',
-    emoji: '🐟',
-    rarity: 'uncommon',
-    minSize: 40,
-    maxSize: 100,
-    baseValue: 6,
-    description: '겨울 횟감의 왕',
-    category: 'saltwater',
-  },
-  {
-    name: '도미',
-    emoji: '🐠',
-    rarity: 'uncommon',
-    minSize: 20,
-    maxSize: 60,
-    baseValue: 7,
-    description: '참돔이라고도 불린다',
-    category: 'saltwater',
-  },
-  {
-    name: '광어',
-    emoji: '🐟',
-    rarity: 'uncommon',
-    minSize: 30,
-    maxSize: 80,
-    baseValue: 6,
-    description: '넙적한 바닥 물고기',
-    category: 'saltwater',
-  },
-  {
-    name: '갈치',
-    emoji: '🐟',
-    rarity: 'uncommon',
-    minSize: 50,
-    maxSize: 150,
-    baseValue: 5,
-    description: '은빛 칼처럼 길고 날씬하다',
-    category: 'saltwater',
-  },
-  {
-    name: '문어',
-    emoji: '🐙',
-    rarity: 'uncommon',
-    minSize: 30,
-    maxSize: 80,
-    baseValue: 6,
-    description: '다리가 8개, 머리가 좋다',
-    category: 'saltwater',
-  },
-  {
-    name: '오징어',
-    emoji: '🦑',
-    rarity: 'uncommon',
-    minSize: 20,
-    maxSize: 60,
-    baseValue: 5,
-    description: '먹물을 쏘는 연체동물',
-    category: 'saltwater',
-  },
-  {
-    name: '새우',
-    emoji: '🦐',
-    rarity: 'uncommon',
-    minSize: 5,
-    maxSize: 25,
-    baseValue: 7,
-    description: '탱글탱글한 식감',
-    category: 'saltwater',
-  },
-  {
-    name: '꽃게',
-    emoji: '🦀',
-    rarity: 'uncommon',
-    minSize: 10,
-    maxSize: 25,
-    baseValue: 8,
-    description: '양념게장의 주인공',
-    category: 'saltwater',
-  },
-  {
-    name: '연어',
-    emoji: '🐟',
-    rarity: 'uncommon',
-    minSize: 40,
-    maxSize: 80,
-    baseValue: 7,
-    description: '회귀 본능의 상징',
-    category: 'saltwater',
-  },
-  {
-    name: '장어',
-    emoji: '🐍',
-    rarity: 'uncommon',
-    minSize: 30,
-    maxSize: 80,
-    baseValue: 8,
-    description: '보양식의 왕',
-    category: 'saltwater',
-  },
-  {
-    name: '복어',
-    emoji: '🐡',
-    rarity: 'uncommon',
-    minSize: 10,
-    maxSize: 40,
-    baseValue: 10,
-    description: '독이 있으니 조심!',
-    category: 'saltwater',
-  },
-  {
-    name: '가오리',
-    emoji: '🐟',
-    rarity: 'uncommon',
-    minSize: 30,
-    maxSize: 100,
-    baseValue: 5,
-    description: '날개처럼 헤엄치는 물고기',
-    category: 'saltwater',
-  },
-  {
-    name: '해마',
-    emoji: '🐟',
-    rarity: 'uncommon',
-    minSize: 5,
-    maxSize: 20,
-    baseValue: 9,
-    description: '말을 닮은 신기한 물고기',
-    category: 'saltwater',
-  },
-  {
-    name: '우럭',
-    emoji: '🐟',
-    rarity: 'uncommon',
-    minSize: 20,
-    maxSize: 50,
-    baseValue: 6,
-    description: '선상낚시 인기 어종',
-    category: 'saltwater',
-  },
-  {
-    name: '감성돔',
-    emoji: '🐟',
-    rarity: 'uncommon',
-    minSize: 20,
-    maxSize: 50,
-    baseValue: 7,
-    description: '갯바위 낚시의 꽃',
-    category: 'saltwater',
-  },
-  {
-    name: '삼치',
-    emoji: '🐟',
-    rarity: 'uncommon',
-    minSize: 30,
-    maxSize: 80,
-    baseValue: 5,
-    description: '구이로 인기 있는 생선',
-    category: 'saltwater',
-  },
-  {
-    name: '전복',
-    emoji: '🐚',
-    rarity: 'uncommon',
-    minSize: 5,
-    maxSize: 15,
-    baseValue: 12,
-    description: '해녀가 따는 고급 해산물',
-    category: 'saltwater',
-  },
-  {
-    name: '성게',
-    emoji: '🦔',
-    rarity: 'uncommon',
-    minSize: 3,
-    maxSize: 10,
-    baseValue: 10,
-    description: '가시투성이지만 속은 달콤',
-    category: 'saltwater',
-  },
-  {
-    name: '주꾸미',
-    emoji: '🐙',
-    rarity: 'uncommon',
-    minSize: 10,
-    maxSize: 25,
-    baseValue: 7,
-    description: '작은 문어, 볶음요리의 왕',
-    category: 'saltwater',
-  },
-  // -- 열대 --
-  {
-    name: '흰동가리',
-    emoji: '🐠',
-    rarity: 'uncommon',
-    minSize: 5,
-    maxSize: 12,
-    baseValue: 8,
-    description: '니모를 찾아서의 주인공',
-    category: 'tropical',
-  },
-  {
-    name: '블루탱',
-    emoji: '🐠',
-    rarity: 'uncommon',
-    minSize: 10,
-    maxSize: 30,
-    baseValue: 7,
-    description: '도리를 찾아서의 주인공',
-    category: 'tropical',
-  },
-  {
-    name: '디스커스',
-    emoji: '🐠',
-    rarity: 'uncommon',
-    minSize: 10,
-    maxSize: 20,
-    baseValue: 9,
-    description: '열대어의 왕이라 불린다',
-    category: 'tropical',
-  },
-  {
-    name: '피라냐',
-    emoji: '🐟',
-    rarity: 'uncommon',
-    minSize: 10,
-    maxSize: 30,
-    baseValue: 6,
-    description: '무시무시한 이빨의 소유자',
-    category: 'tropical',
-  },
-  {
-    name: '아로와나',
-    emoji: '🐟',
-    rarity: 'uncommon',
-    minSize: 30,
-    maxSize: 80,
-    baseValue: 10,
-    description: '용을 닮은 고급 관상어',
-    category: 'tropical',
-  },
-  {
-    name: '구라미',
-    emoji: '🐠',
-    rarity: 'uncommon',
-    minSize: 8,
-    maxSize: 15,
-    baseValue: 5,
-    description: '입술로 공기를 마시는 물고기',
-    category: 'tropical',
-  },
-  {
-    name: '시클리드',
-    emoji: '🐠',
-    rarity: 'uncommon',
-    minSize: 10,
-    maxSize: 30,
-    baseValue: 6,
-    description: '아프리카 호수의 화려한 물고기',
-    category: 'tropical',
-  },
-  {
-    name: '베타',
-    emoji: '🐠',
-    rarity: 'uncommon',
-    minSize: 5,
-    maxSize: 8,
-    baseValue: 8,
-    description: '투쟁어, 화려한 지느러미',
-    category: 'tropical',
-  },
-
-  // ═══════════════════════════════════
-  //  RARE (30 species)
-  // ═══════════════════════════════════
-  {
-    name: '참치',
-    emoji: '🐟',
-    rarity: 'rare',
-    minSize: 80,
-    maxSize: 200,
-    baseValue: 12,
-    description: '바다의 마라토너',
-    category: 'saltwater',
-  },
-  {
-    name: '황금 잉어',
-    emoji: '✨',
-    rarity: 'rare',
-    minSize: 20,
-    maxSize: 60,
-    baseValue: 15,
-    description: '황금빛으로 빛나는 행운의 잉어',
-    category: 'freshwater',
-  },
-  {
-    name: '상어',
-    emoji: '🦈',
-    rarity: 'rare',
-    minSize: 100,
-    maxSize: 300,
-    baseValue: 10,
-    description: '바다의 최상위 포식자',
-    category: 'saltwater',
-  },
-  {
-    name: '해파리',
-    emoji: '🪼',
-    rarity: 'rare',
-    minSize: 10,
-    maxSize: 50,
-    baseValue: 8,
-    description: '몽환적인 움직임',
-    category: 'saltwater',
-  },
-  {
-    name: '가재',
-    emoji: '🦞',
-    rarity: 'rare',
-    minSize: 15,
-    maxSize: 40,
-    baseValue: 15,
-    description: '민물의 랍스터',
-    category: 'freshwater',
-  },
-  {
-    name: '다랑어',
-    emoji: '🐟',
-    rarity: 'rare',
-    minSize: 60,
-    maxSize: 180,
-    baseValue: 12,
-    description: '고급 회의 재료',
-    category: 'saltwater',
-  },
-  {
-    name: '킹크랩',
-    emoji: '🦀',
-    rarity: 'rare',
-    minSize: 30,
-    maxSize: 80,
-    baseValue: 18,
-    description: '게의 왕',
-    category: 'deep_sea',
-  },
-  {
-    name: '전기 뱀장어',
-    emoji: '⚡',
-    rarity: 'rare',
-    minSize: 50,
-    maxSize: 150,
-    baseValue: 12,
-    description: '600볼트 감전 주의!',
-    category: 'tropical',
-  },
-  {
-    name: '만타레이',
-    emoji: '🐟',
-    rarity: 'rare',
-    minSize: 200,
-    maxSize: 500,
-    baseValue: 8,
-    description: '우아한 바다의 대형 가오리',
-    category: 'saltwater',
-  },
-  {
-    name: '철갑상어',
-    emoji: '🐟',
-    rarity: 'rare',
-    minSize: 80,
-    maxSize: 300,
-    baseValue: 15,
-    description: '캐비아를 생산하는 고급 어종',
-    category: 'freshwater',
-  },
-  {
-    name: '대게',
-    emoji: '🦀',
-    rarity: 'rare',
-    minSize: 15,
-    maxSize: 40,
-    baseValue: 16,
-    description: '영덕 대게로 유명한 고급 게',
-    category: 'saltwater',
-  },
-  {
-    name: '랍스터',
-    emoji: '🦞',
-    rarity: 'rare',
-    minSize: 25,
-    maxSize: 60,
-    baseValue: 18,
-    description: '고급 레스토랑의 메인 요리',
-    category: 'saltwater',
-  },
-  {
-    name: '귀상어',
-    emoji: '🦈',
-    rarity: 'rare',
-    minSize: 100,
-    maxSize: 400,
-    baseValue: 10,
-    description: 'T자 머리의 독특한 상어',
-    category: 'saltwater',
-  },
-  {
-    name: '돌돔',
-    emoji: '🐟',
-    rarity: 'rare',
-    minSize: 30,
-    maxSize: 70,
-    baseValue: 14,
-    description: '바위 사이의 고급 어종',
-    category: 'saltwater',
-  },
-  {
-    name: '붉바리',
-    emoji: '🐟',
-    rarity: 'rare',
-    minSize: 30,
-    maxSize: 80,
-    baseValue: 16,
-    description: '제주 앞바다의 최고급 어종',
-    category: 'saltwater',
-  },
-  {
-    name: '민어',
-    emoji: '🐟',
-    rarity: 'rare',
-    minSize: 40,
-    maxSize: 120,
-    baseValue: 14,
-    description: '보양식으로 유명한 고급 생선',
-    category: 'saltwater',
-  },
-  {
-    name: '눈볼대',
-    emoji: '🐟',
-    rarity: 'rare',
-    minSize: 15,
-    maxSize: 30,
-    baseValue: 12,
-    description: '큰 눈이 특징인 심해어',
-    category: 'deep_sea',
-  },
-  {
-    name: '피라루쿠',
-    emoji: '🐟',
-    rarity: 'rare',
-    minSize: 100,
-    maxSize: 300,
-    baseValue: 12,
-    description: '아마존의 거대 민물고기',
-    category: 'tropical',
-  },
-  {
-    name: '플라워혼',
-    emoji: '🐠',
-    rarity: 'rare',
-    minSize: 20,
-    maxSize: 40,
-    baseValue: 14,
-    description: '머리에 혹이 있는 관상어',
-    category: 'tropical',
-  },
-  {
-    name: '바다거북',
-    emoji: '🐢',
-    rarity: 'rare',
-    minSize: 50,
-    maxSize: 150,
-    baseValue: 12,
-    description: '보호종! 도감에만 등록',
-    category: 'saltwater',
-  },
-  {
-    name: '바다뱀',
-    emoji: '🐍',
-    rarity: 'rare',
-    minSize: 50,
-    maxSize: 200,
-    baseValue: 10,
-    description: '독이 있다! 조심히 다뤄야 한다',
-    category: 'saltwater',
-  },
-  {
-    name: '무지개 열대어',
-    emoji: '🌈',
-    rarity: 'rare',
-    minSize: 5,
-    maxSize: 15,
-    baseValue: 18,
-    description: '일곱 빛깔 무지개 물고기',
-    category: 'tropical',
-  },
-  {
-    name: '심해 빨간새우',
-    emoji: '🦐',
-    rarity: 'rare',
-    minSize: 10,
-    maxSize: 25,
-    baseValue: 15,
-    description: '깊은 바다의 붉은 보석',
-    category: 'deep_sea',
-  },
-  {
-    name: '열대 해마',
-    emoji: '🐟',
-    rarity: 'rare',
-    minSize: 3,
-    maxSize: 15,
-    baseValue: 20,
-    description: '화려한 색상의 열대 해마',
-    category: 'tropical',
-  },
-  {
-    name: '자이언트 구라미',
-    emoji: '🐟',
-    rarity: 'rare',
-    minSize: 30,
-    maxSize: 70,
-    baseValue: 11,
-    description: '입이 큰 동남아 대형 물고기',
-    category: 'tropical',
-  },
-  {
-    name: '넙치',
-    emoji: '🐟',
-    rarity: 'rare',
-    minSize: 40,
-    maxSize: 100,
-    baseValue: 12,
-    description: '자연산 넙치, 양식과는 차원이 다르다',
-    category: 'saltwater',
-  },
-  {
-    name: '아르마딜로 캣피쉬',
-    emoji: '🐟',
-    rarity: 'rare',
-    minSize: 30,
-    maxSize: 80,
-    baseValue: 10,
-    description: '갑옷을 입은 메기',
-    category: 'tropical',
-  },
-  {
-    name: '눈퉁멸',
-    emoji: '🐟',
-    rarity: 'rare',
-    minSize: 10,
-    maxSize: 20,
-    baseValue: 10,
-    description: '커다란 눈이 매력적인 심해어',
-    category: 'deep_sea',
-  },
-  {
-    name: '전기메기',
-    emoji: '⚡',
-    rarity: 'rare',
-    minSize: 40,
-    maxSize: 120,
-    baseValue: 13,
-    description: '아프리카의 전기를 내는 메기',
-    category: 'tropical',
-  },
-  {
-    name: '쥐가오리',
-    emoji: '🐟',
-    rarity: 'rare',
-    minSize: 100,
-    maxSize: 300,
-    baseValue: 11,
-    description: '독이 없는 대형 가오리',
-    category: 'saltwater',
-  },
-
-  // ═══════════════════════════════════
-  //  EPIC (25 species)
-  // ═══════════════════════════════════
-  {
-    name: '대왕 오징어',
-    emoji: '🦑',
-    rarity: 'epic',
-    minSize: 300,
-    maxSize: 800,
-    baseValue: 15,
-    description: '심해의 거대한 괴물',
-    category: 'deep_sea',
-  },
-  {
-    name: '백상아리',
-    emoji: '🦈',
-    rarity: 'epic',
-    minSize: 200,
-    maxSize: 600,
-    baseValue: 18,
-    description: '바다의 공포, 최상위 포식자',
-    category: 'saltwater',
-  },
-  {
-    name: '개복치',
-    emoji: '🐟',
-    rarity: 'epic',
-    minSize: 100,
-    maxSize: 300,
-    baseValue: 20,
-    description: '가장 무거운 경골어류',
-    category: 'saltwater',
-  },
-  {
-    name: '심해 아귀',
-    emoji: '🐟',
-    rarity: 'epic',
-    minSize: 30,
-    maxSize: 100,
-    baseValue: 22,
-    description: '머리에 등불을 달고 다닌다',
-    category: 'deep_sea',
-  },
-  {
-    name: '황금 복어',
-    emoji: '🐡',
-    rarity: 'epic',
-    minSize: 15,
-    maxSize: 50,
-    baseValue: 30,
-    description: '온몸이 24K 순금빛',
-    category: 'saltwater',
-  },
-  {
-    name: '고대 실러캔스',
-    emoji: '🐟',
-    rarity: 'epic',
-    minSize: 100,
-    maxSize: 200,
-    baseValue: 25,
-    description: '살아있는 화석, 3억년 전부터',
-    category: 'deep_sea',
-  },
-  {
-    name: '크라켄의 촉수',
-    emoji: '🦑',
-    rarity: 'epic',
-    minSize: 200,
-    maxSize: 500,
-    baseValue: 20,
-    description: '크라켄의 일부분인 것 같다...',
-    category: 'deep_sea',
-  },
-  {
-    name: '용궁 거북이',
-    emoji: '🐢',
-    rarity: 'epic',
-    minSize: 50,
-    maxSize: 150,
-    baseValue: 28,
-    description: '용궁에서 온 거북이',
-    category: 'mythical',
-  },
-  {
-    name: '고래상어',
-    emoji: '🦈',
-    rarity: 'epic',
-    minSize: 500,
-    maxSize: 1800,
-    baseValue: 8,
-    description: '가장 큰 물고기, 성격은 온순',
-    category: 'saltwater',
-  },
-  {
-    name: '블루링 문어',
-    emoji: '🐙',
-    rarity: 'epic',
-    minSize: 5,
-    maxSize: 20,
-    baseValue: 35,
-    description: '아름답지만 치명적인 맹독',
-    category: 'tropical',
-  },
-  {
-    name: '범고래',
-    emoji: '🐋',
-    rarity: 'epic',
-    minSize: 400,
-    maxSize: 900,
-    baseValue: 10,
-    description: '바다의 최상위 포식자',
-    category: 'saltwater',
-  },
-  {
-    name: '심해 바이퍼피쉬',
-    emoji: '🐟',
-    rarity: 'epic',
-    minSize: 15,
-    maxSize: 35,
-    baseValue: 25,
-    description: '송곳니가 입 밖으로 삐져나온다',
-    category: 'deep_sea',
-  },
-  {
-    name: '오아피쉬',
-    emoji: '🐟',
-    rarity: 'epic',
-    minSize: 300,
-    maxSize: 800,
-    baseValue: 12,
-    description: '산갈치라고도 불리는 심해의 거인',
-    category: 'deep_sea',
-  },
-  {
-    name: '드래곤피쉬',
-    emoji: '🐉',
-    rarity: 'epic',
-    minSize: 30,
-    maxSize: 60,
-    baseValue: 28,
-    description: '심해에서 붉은 빛을 내는 용 같은 물고기',
-    category: 'deep_sea',
-  },
-  {
-    name: '나폴레옹 피쉬',
-    emoji: '🐠',
-    rarity: 'epic',
-    minSize: 60,
-    maxSize: 200,
-    baseValue: 20,
-    description: '이마에 혹이 있는 거대 놀래미',
-    category: 'tropical',
-  },
-  {
-    name: '뱀파이어 오징어',
-    emoji: '🦑',
-    rarity: 'epic',
-    minSize: 15,
-    maxSize: 30,
-    baseValue: 30,
-    description: '빛을 내며 심해에 사는 흡혈 오징어',
-    category: 'deep_sea',
-  },
-  {
-    name: '태평양 블루핀 참치',
-    emoji: '🐟',
-    rarity: 'epic',
-    minSize: 150,
-    maxSize: 300,
-    baseValue: 25,
-    description: '경매에서 수억에 낙찰되는 참치',
-    category: 'saltwater',
-  },
-  {
-    name: '진주조개',
-    emoji: '🐚',
-    rarity: 'epic',
-    minSize: 10,
-    maxSize: 30,
-    baseValue: 35,
-    description: '안에 진주가 들어있을지도...',
-    category: 'saltwater',
-  },
-  {
-    name: '환도상어',
-    emoji: '🦈',
-    rarity: 'epic',
-    minSize: 200,
-    maxSize: 550,
-    baseValue: 16,
-    description: '꼬리가 몸만큼 긴 독특한 상어',
-    category: 'saltwater',
-  },
-  {
-    name: '수정 해파리',
-    emoji: '🪼',
-    rarity: 'epic',
-    minSize: 5,
-    maxSize: 20,
-    baseValue: 40,
-    description: '완전히 투명한 유리 해파리',
-    category: 'deep_sea',
-  },
-  {
-    name: '알비노 철갑상어',
-    emoji: '🐟',
-    rarity: 'epic',
-    minSize: 100,
-    maxSize: 250,
-    baseValue: 22,
-    description: '하얀 철갑상어, 황금빛 캐비아',
-    category: 'freshwater',
-  },
-  {
-    name: '심해 대왕이빨고기',
-    emoji: '🐟',
-    rarity: 'epic',
-    minSize: 80,
-    maxSize: 200,
-    baseValue: 20,
-    description: '메로라고도 불리는 심해 고급어',
-    category: 'deep_sea',
-  },
-  {
-    name: '대왕조개',
-    emoji: '🐚',
-    rarity: 'epic',
-    minSize: 50,
-    maxSize: 130,
-    baseValue: 22,
-    description: '열대 바다의 거대한 조개',
-    category: 'tropical',
-  },
-  {
-    name: '거대 해파리',
-    emoji: '🪼',
-    rarity: 'epic',
-    minSize: 50,
-    maxSize: 200,
-    baseValue: 18,
-    description: '사람보다 큰 거대 해파리',
-    category: 'deep_sea',
-  },
-  {
-    name: '거대 가오리',
-    emoji: '🐟',
-    rarity: 'epic',
-    minSize: 200,
-    maxSize: 600,
-    baseValue: 14,
-    description: '날개폭이 6미터에 달하는 거인',
-    category: 'saltwater',
-  },
-
-  // ═══════════════════════════════════
-  //  LEGENDARY (15 species)
-  // ═══════════════════════════════════
-  {
-    name: '용의 물고기',
-    emoji: '🐉',
-    rarity: 'legendary',
-    minSize: 200,
-    maxSize: 500,
-    baseValue: 40,
-    description: '용이 키우던 물고기라는 전설',
-    category: 'mythical',
-  },
-  {
-    name: '다이아몬드 물고기',
-    emoji: '💎',
-    rarity: 'legendary',
-    minSize: 10,
-    maxSize: 30,
-    baseValue: 80,
-    description: '비늘이 다이아몬드로 되어있다',
-    category: 'mythical',
-  },
-  {
-    name: '불사조 물고기',
-    emoji: '🐦‍🔥',
-    rarity: 'legendary',
-    minSize: 30,
-    maxSize: 80,
-    baseValue: 60,
-    description: '물속에서 불타는 불멸의 물고기',
-    category: 'mythical',
-  },
-  {
-    name: '시간의 물고기',
-    emoji: '⏳',
-    rarity: 'legendary',
-    minSize: 20,
-    maxSize: 50,
-    baseValue: 70,
-    description: '이 물고기를 잡으면 시간이 되감긴다',
-    category: 'mythical',
-  },
-  {
-    name: '메갈로돈 이빨',
-    emoji: '🦈',
-    rarity: 'legendary',
-    minSize: 15,
-    maxSize: 30,
-    baseValue: 100,
-    description: '고대 초대형 상어의 이빨 화석',
-    category: 'mythical',
-  },
-  {
-    name: '황금 고래',
-    emoji: '🐋',
-    rarity: 'legendary',
-    minSize: 500,
-    maxSize: 2000,
-    baseValue: 35,
-    description: '전설 속의 황금빛 고래',
-    category: 'mythical',
-  },
-  {
-    name: '일각고래',
-    emoji: '🦄',
-    rarity: 'legendary',
-    minSize: 300,
-    maxSize: 600,
-    baseValue: 45,
-    description: '유니콘 뿔을 가진 바다의 전설',
-    category: 'mythical',
-  },
-  {
-    name: '심해의 등불고기',
-    emoji: '💡',
-    rarity: 'legendary',
-    minSize: 50,
-    maxSize: 100,
-    baseValue: 55,
-    description: '깊은 바다를 밝히는 살아있는 등대',
-    category: 'deep_sea',
-  },
-  {
-    name: '얼음 물고기',
-    emoji: '🧊',
-    rarity: 'legendary',
-    minSize: 30,
-    maxSize: 80,
-    baseValue: 65,
-    description: '피가 투명하고 영하에서 사는 극한 물고기',
-    category: 'deep_sea',
-  },
-  {
-    name: '무지개빛 대왕 산호',
-    emoji: '🌈',
-    rarity: 'legendary',
-    minSize: 100,
-    maxSize: 300,
-    baseValue: 50,
-    description: '살아있는 무지개 산호, 그 자체로 보물',
-    category: 'tropical',
-  },
-  {
-    name: '황제 눈동자개',
-    emoji: '👑',
-    rarity: 'legendary',
-    minSize: 30,
-    maxSize: 60,
-    baseValue: 75,
-    description: '금관을 쓴 듯한 민물의 황제',
-    category: 'freshwater',
-  },
-  {
-    name: '크리스탈 새우',
-    emoji: '💎',
-    rarity: 'legendary',
-    minSize: 3,
-    maxSize: 8,
-    baseValue: 120,
-    description: '수정처럼 투명한 전설의 새우',
-    category: 'deep_sea',
-  },
-  {
-    name: '심연의 거대 문어',
-    emoji: '🐙',
-    rarity: 'legendary',
-    minSize: 300,
-    maxSize: 800,
-    baseValue: 38,
-    description: '지능이 인간에 필적한다는 심해 문어',
-    category: 'deep_sea',
-  },
-  {
-    name: '에메랄드 랍스터',
-    emoji: '🦞',
-    rarity: 'legendary',
-    minSize: 30,
-    maxSize: 60,
-    baseValue: 90,
-    description: '에메랄드빛 껍데기의 전설적 랍스터',
-    category: 'saltwater',
-  },
-  {
-    name: '바다신의 말',
-    emoji: '🐴',
-    rarity: 'legendary',
-    minSize: 50,
-    maxSize: 120,
-    baseValue: 85,
-    description: '포세이돈이 타던 해마의 후손',
-    category: 'mythical',
-  },
-
-  // ═══════════════════════════════════
-  //  MYTHIC (10 species)
-  // ═══════════════════════════════════
-  {
-    name: '세계를 낚은 물고기',
-    emoji: '🌍',
-    rarity: 'mythic',
-    minSize: 1,
-    maxSize: 1,
-    baseValue: 9999,
-    description: '이 물고기가 세상을 만들었다',
-    category: 'mythical',
-  },
-  {
-    name: '시공간을 유영하는 고래',
-    emoji: '🐋',
-    rarity: 'mythic',
-    minSize: 5000,
-    maxSize: 30000,
-    baseValue: 5,
-    description: '차원 사이를 헤엄치는 신비의 존재',
-    category: 'mythical',
-  },
-  {
-    name: '무한의 문어',
-    emoji: '🐙',
-    rarity: 'mythic',
-    minSize: 42,
-    maxSize: 42,
-    baseValue: 5000,
-    description: '다리가 무한 개. 존재 자체가 모순이다.',
-    category: 'mythical',
-  },
-  {
-    name: '신이 잃어버린 금붕어',
-    emoji: '🐠',
-    rarity: 'mythic',
-    minSize: 5,
-    maxSize: 15,
-    baseValue: 8888,
-    description: '신이 키우다 놓친 금붕어',
-    category: 'mythical',
-  },
-  {
-    name: '리바이어던의 비늘',
-    emoji: '🐲',
-    rarity: 'mythic',
-    minSize: 50,
-    maxSize: 50,
-    baseValue: 7777,
-    description: '성경의 바다 괴물의 비늘 한 조각',
-    category: 'mythical',
-  },
-  {
-    name: '요르문간드의 이빨',
-    emoji: '🐍',
-    rarity: 'mythic',
-    minSize: 100,
-    maxSize: 100,
-    baseValue: 6666,
-    description: '세상을 감싼 거대 뱀의 이빨',
-    category: 'mythical',
-  },
-  {
-    name: '인어의 눈물',
-    emoji: '🧜‍♀️',
-    rarity: 'mythic',
-    minSize: 1,
-    maxSize: 3,
-    baseValue: 10000,
-    description: '인어가 흘린 결정화된 눈물',
-    category: 'mythical',
-  },
-  {
-    name: '용왕의 여의주',
-    emoji: '🔮',
-    rarity: 'mythic',
-    minSize: 5,
-    maxSize: 10,
-    baseValue: 8000,
-    description: '동해 용왕이 다스리던 여의주',
-    category: 'mythical',
-  },
-  {
-    name: '심연의 눈',
-    emoji: '👁️',
-    rarity: 'mythic',
-    minSize: 30,
-    maxSize: 30,
-    baseValue: 6000,
-    description: '심해 깊은 곳에서 올라온 거대한 눈',
-    category: 'mythical',
-  },
-  {
-    name: '태초의 물방울',
-    emoji: '💧',
-    rarity: 'mythic',
-    minSize: 1,
-    maxSize: 1,
-    baseValue: 15000,
-    description: '우주가 탄생할 때 생긴 최초의 물방울',
-    category: 'mythical',
-  },
-]
-
-// ══════════════════════════════════════
-//  DANGEROUS CATCHES (damage or kill player)
-// ══════════════════════════════════════
-
-export interface DangerousCatch {
-  name: string
-  emoji: string
-  damage: number // 0 = instant kill, >0 = specific damage
-  goldLoss: number // gold lost
-  description: string
-  deathMessage: string
-}
+// ══════════════════════════════════════════════════════════
+//  Dangerous catches
+// ══════════════════════════════════════════════════════════
 
 export const dangerousCatches: DangerousCatch[] = [
   {
@@ -1883,7 +192,7 @@ export const dangerousCatches: DangerousCatch[] = [
     goldLoss: 100,
     description: '낚싯줄에 뭔가... 빨간 것이?!',
     deathMessage:
-      '다이너마이트가 터졌습니다!!! 💥💀\n반경 10m가 초토화되었습니다. 물고기도 같이 죽었습니다.',
+      '다이너마이트가 터졌습니다!!! 💥💀\n반경 10m가 초토화되었습니다.',
   },
   {
     name: '저주받은 인형',
@@ -1909,8 +218,7 @@ export const dangerousCatches: DangerousCatch[] = [
     damage: 0,
     goldLoss: 50,
     description: '째깍째깍... 3초 남았다!!!',
-    deathMessage:
-      '💣💥 BOOM! 낚싯대와 함께 산산조각!\n본인 과실이므로 보험 적용 불가합니다.',
+    deathMessage: '💣💥 BOOM! 낚싯대와 함께 산산조각!',
   },
   {
     name: '복어 독',
@@ -1936,8 +244,7 @@ export const dangerousCatches: DangerousCatch[] = [
     damage: 60,
     goldLoss: 0,
     description: '해파리 떼가 낚싯줄을 타고 올라온다!',
-    deathMessage:
-      '해파리에 온몸이 쏘였습니다! 🪼⚡\n따끔따끔... 아프지만 죽지는 않았습니다.',
+    deathMessage: '해파리에 온몸이 쏘였습니다! 🪼⚡\n따끔따끔...',
   },
   {
     name: '고대 지뢰',
@@ -1945,8 +252,7 @@ export const dangerousCatches: DangerousCatch[] = [
     damage: 0,
     goldLoss: 200,
     description: '녹슨 금속 물체가... 잠깐, 이거 지뢰 아닌가?!',
-    deathMessage:
-      '6.25 때 매설된 지뢰가 폭발했습니다! 💥💀\n역사적 유물이었지만 당신의 HP도 역사가 되었습니다.',
+    deathMessage: '6.25 때 매설된 지뢰가 폭발했습니다! 💥💀',
   },
   {
     name: '유독성 해삼',
@@ -1971,7 +277,7 @@ export const dangerousCatches: DangerousCatch[] = [
     goldLoss: 0,
     description: '형광빛 드럼통이 올라왔다... 체르노빌 느낌?',
     deathMessage:
-      '방사능에 노출되었습니다! ☢️💀\n당신은 이제 밤에 빛납니다. (더 이상 낚시 못함)',
+      '방사능에 노출되었습니다! ☢️💀\n당신은 이제 밤에 빛납니다.',
   },
 ]
 
@@ -1979,551 +285,35 @@ export function rollDangerousCatch(): DangerousCatch {
   return dangerousCatches[Math.floor(Math.random() * dangerousCatches.length)]
 }
 
-// ══════════════════════════════════════
-//  TEMPLATE-BASED FISH GENERATION (~30,000 species)
-// ══════════════════════════════════════
+// ══════════════════════════════════════════════════════════
+//  Trash items
+// ══════════════════════════════════════════════════════════
 
-type FishCategory = FishType['category']
-type FishRarity = FishType['rarity']
+export const trashPool: TrashType[] = [
+  { name: '빈 깡통', emoji: '🥫', disposalCost: 5, pollutionAmount: 2, description: '녹슨 깡통이다' },
+  { name: '비닐봉지', emoji: '🛍️', disposalCost: 3, pollutionAmount: 3, description: '환경 오염의 주범' },
+  { name: '오래된 장화', emoji: '👢', disposalCost: 8, pollutionAmount: 2, description: '누가 버린 걸까' },
+  { name: '깨진 유리병', emoji: '🍾', disposalCost: 10, pollutionAmount: 4, description: '위험! 물고기들이 다칠 수 있다' },
+  { name: '타이어', emoji: '🛞', disposalCost: 30, pollutionAmount: 8, description: '거대한 폐타이어' },
+  { name: '폐배터리', emoji: '🔋', disposalCost: 25, pollutionAmount: 10, description: '수질을 심각하게 오염시킨다' },
+  { name: '스티로폼', emoji: '📦', disposalCost: 5, pollutionAmount: 3, description: '잘게 부서져 미세플라스틱이 된다' },
+  { name: '떠다니는 쓰레기 봉투', emoji: '🗑️', disposalCost: 4, pollutionAmount: 2, description: '거북이가 해파리로 착각한다' },
+  { name: '녹슨 낚싯바늘 뭉치', emoji: '🪝', disposalCost: 7, pollutionAmount: 3, description: '이전 낚시꾼의 흔적' },
+  { name: '폐유통', emoji: '🛢️', disposalCost: 50, pollutionAmount: 10, description: '기름이 새고 있다! 긴급 처리 필요!' },
+  { name: '낡은 신발', emoji: '👟', disposalCost: 6, pollutionAmount: 2, description: '한 짝만 있다' },
+  { name: '플라스틱 빨대', emoji: '🥤', disposalCost: 2, pollutionAmount: 2, description: '바다거북의 천적' },
+  { name: '부서진 우산', emoji: '☂️', disposalCost: 8, pollutionAmount: 3, description: '강풍에 날아온 듯' },
+  { name: '엉킨 낚싯줄', emoji: '🧵', disposalCost: 5, pollutionAmount: 4, description: '물고기가 감길 수 있어 위험하다' },
+  { name: '침몰한 보트 조각', emoji: '🚣', disposalCost: 40, pollutionAmount: 6, description: '페인트 성분이 물에 녹고 있다' },
+]
 
-interface FishTemplateBase {
-  name: string
-  emoji: string
-  category: FishCategory
+export function rollTrash(): TrashType {
+  return trashPool[Math.floor(Math.random() * trashPool.length)]
 }
 
-interface FishTemplate {
-  prefixes: string[]
-  bases: FishTemplateBase[]
-  suffixes: string[]
-}
-
-const fishStatRanges: Record<
-  FishRarity,
-  {
-    minSize: [number, number]
-    maxSize: [number, number]
-    baseValue: [number, number]
-  }
-> = {
-  common: { minSize: [2, 15], maxSize: [8, 40], baseValue: [1, 3] },
-  uncommon: { minSize: [5, 25], maxSize: [15, 80], baseValue: [4, 10] },
-  rare: { minSize: [10, 60], maxSize: [30, 250], baseValue: [10, 30] },
-  epic: { minSize: [15, 120], maxSize: [50, 600], baseValue: [25, 80] },
-  legendary: { minSize: [10, 200], maxSize: [30, 1000], baseValue: [100, 400] },
-  mythic: { minSize: [1, 50], maxSize: [10, 300], baseValue: [200, 1000] },
-}
-
-const fishDescTemplates: Record<FishCategory, string[]> = {
-  freshwater: [
-    '맑은 계곡에 사는 민물고기',
-    '강에서 발견되는 담수어',
-    '호수의 터줏대감',
-    '한국 하천에서 볼 수 있는 물고기',
-    '개울에서 노는 작은 물고기',
-    '저수지에 사는 민물고기',
-    '댐 근처에서 잡히는 담수어',
-    '논두렁 옆 수로에 사는 물고기',
-  ],
-  saltwater: [
-    '바다에서 잡히는 해수어',
-    '연안에서 볼 수 있는 물고기',
-    '깊은 바다의 거주자',
-    '조류를 타고 다니는 해양 어류',
-    '암초 근처에 사는 바다 물고기',
-    '방파제 근처에서 자주 보이는 물고기',
-    '동해안에서 주로 잡히는 어류',
-    '남해에서 볼 수 있는 바다 물고기',
-  ],
-  deep_sea: [
-    '심해에서 발견된 희귀 어종',
-    '빛이 닿지 않는 깊은 곳의 물고기',
-    '심해 열수구 근처에 사는 어류',
-    '수압을 견디는 심해 생물',
-    '어둠 속에서 빛나는 심해어',
-    '해저 협곡에 사는 미지의 어류',
-    '수심 1000m 이하에서 발견된 물고기',
-    '마리아나 해구 근처의 생물',
-  ],
-  tropical: [
-    '열대 바다의 화려한 물고기',
-    '산호초 사이를 헤엄치는 열대어',
-    '아마존 강에 사는 열대 담수어',
-    '동남아 수역의 관상어',
-    '따뜻한 바다의 화려한 물고기',
-    '열대우림 강에 사는 희귀한 어류',
-    '카리브해의 형형색색 물고기',
-    '인도양의 아름다운 열대어',
-  ],
-  mythical: [
-    '전설 속에만 존재하던 물고기',
-    '고대 문헌에 기록된 신비의 존재',
-    '신화 속 바다의 수호자',
-    '차원의 틈새에서 건너온 존재',
-    '시공을 초월한 생명체',
-    '꿈에서만 볼 수 있던 존재가 현실에',
-    '고대 용왕의 어항에서 탈출한 물고기',
-    '우주의 심연에서 온 미지의 생물',
-  ],
-}
-
-// ── Common fish template: 30 prefixes × 50 bases × 10 suffixes = 15,000 ──
-const commonFishTemplate: FishTemplate = {
-  prefixes: [
-    '작은',
-    '큰',
-    '통통한',
-    '마른',
-    '날씬한',
-    '졸린',
-    '배고픈',
-    '행복한',
-    '느긋한',
-    '빠른',
-    '게으른',
-    '부지런한',
-    '소심한',
-    '용감한',
-    '동해산',
-    '남해산',
-    '서해산',
-    '제주산',
-    '한강',
-    '낙동강',
-    '홍천',
-    '양평',
-    '시골',
-    '도시',
-    '양식',
-    '자연산',
-    '야생',
-    '토종',
-    '잡종',
-    '흔한',
-  ],
-  bases: [
-    // 담수어 23종
-    { name: '붕어', emoji: '🐟', category: 'freshwater' },
-    { name: '잉어', emoji: '🐟', category: 'freshwater' },
-    { name: '미꾸라지', emoji: '🐍', category: 'freshwater' },
-    { name: '피라미', emoji: '🐠', category: 'freshwater' },
-    { name: '송사리', emoji: '🐟', category: 'freshwater' },
-    { name: '빙어', emoji: '🐟', category: 'freshwater' },
-    { name: '버들치', emoji: '🐟', category: 'freshwater' },
-    { name: '갈겨니', emoji: '🐟', category: 'freshwater' },
-    { name: '참마자', emoji: '🐟', category: 'freshwater' },
-    { name: '돌마자', emoji: '🐟', category: 'freshwater' },
-    { name: '떡붕어', emoji: '🐟', category: 'freshwater' },
-    { name: '누치', emoji: '🐟', category: 'freshwater' },
-    { name: '모래무지', emoji: '🐟', category: 'freshwater' },
-    { name: '돌고기', emoji: '🐟', category: 'freshwater' },
-    { name: '각시붕어', emoji: '🐠', category: 'freshwater' },
-    { name: '가시고기', emoji: '🐟', category: 'freshwater' },
-    { name: '참종개', emoji: '🐟', category: 'freshwater' },
-    { name: '미호종개', emoji: '🐟', category: 'freshwater' },
-    { name: '쌀미꾸리', emoji: '🐍', category: 'freshwater' },
-    { name: '기름종개', emoji: '🐟', category: 'freshwater' },
-    { name: '왕종개', emoji: '🐟', category: 'freshwater' },
-    { name: '참붕어', emoji: '🐟', category: 'freshwater' },
-    { name: '큰가시고기', emoji: '🐟', category: 'freshwater' },
-    // 해수어 18종
-    { name: '멸치', emoji: '🐟', category: 'saltwater' },
-    { name: '고등어', emoji: '🐟', category: 'saltwater' },
-    { name: '꽁치', emoji: '🐟', category: 'saltwater' },
-    { name: '전갱이', emoji: '🐟', category: 'saltwater' },
-    { name: '전어', emoji: '🐟', category: 'saltwater' },
-    { name: '볼락', emoji: '🐟', category: 'saltwater' },
-    { name: '노래미', emoji: '🐟', category: 'saltwater' },
-    { name: '쥐노래미', emoji: '🐟', category: 'saltwater' },
-    { name: '보리멸', emoji: '🐟', category: 'saltwater' },
-    { name: '망상어', emoji: '🐟', category: 'saltwater' },
-    { name: '쏨뱅이', emoji: '🐟', category: 'saltwater' },
-    { name: '가자미', emoji: '🐟', category: 'saltwater' },
-    { name: '서대', emoji: '🐟', category: 'saltwater' },
-    { name: '쥐치', emoji: '🐟', category: 'saltwater' },
-    { name: '양태', emoji: '🐟', category: 'saltwater' },
-    { name: '까나리', emoji: '🐟', category: 'saltwater' },
-    { name: '도루묵', emoji: '🐟', category: 'saltwater' },
-    { name: '임연수어', emoji: '🐟', category: 'saltwater' },
-    // 열대어 9종
-    { name: '구피', emoji: '🐠', category: 'tropical' },
-    { name: '네온테트라', emoji: '🐠', category: 'tropical' },
-    { name: '몰리', emoji: '🐠', category: 'tropical' },
-    { name: '플래티', emoji: '🐠', category: 'tropical' },
-    { name: '코리도라스', emoji: '🐟', category: 'tropical' },
-    { name: '제브라다니오', emoji: '🐠', category: 'tropical' },
-    { name: '소드테일', emoji: '🐠', category: 'tropical' },
-    { name: '라스보라', emoji: '🐠', category: 'tropical' },
-    { name: '체리바브', emoji: '🐠', category: 'tropical' },
-  ],
-  suffixes: [
-    '',
-    '',
-    '(I)',
-    '(II)',
-    '(♂)',
-    '(♀)',
-    '(야행성)',
-    '(주행성)',
-    '(변종)',
-    '(아종)',
-  ],
-}
-
-// ── Uncommon fish template: 25 prefixes × 40 bases × 8 suffixes = 8,000 ──
-const uncommonFishTemplate: FishTemplate = {
-  prefixes: [
-    '강화된',
-    '은빛',
-    '금빛',
-    '빛나는',
-    '튼튼한',
-    '날렵한',
-    '점박이',
-    '줄무늬',
-    '얼룩',
-    '거대한',
-    '민첩한',
-    '야행성',
-    '심해',
-    '연안',
-    '개량종',
-    '무지개빛',
-    '에메랄드빛',
-    '루비빛',
-    '사파이어빛',
-    '최상급',
-    '프리미엄',
-    '청정',
-    '유기농',
-    '명품',
-    '특대형',
-  ],
-  bases: [
-    // 담수 15종
-    { name: '쏘가리', emoji: '🐟', category: 'freshwater' },
-    { name: '메기', emoji: '🐟', category: 'freshwater' },
-    { name: '가물치', emoji: '🐟', category: 'freshwater' },
-    { name: '무지개송어', emoji: '🐠', category: 'freshwater' },
-    { name: '산천어', emoji: '🐟', category: 'freshwater' },
-    { name: '쉬리', emoji: '🐟', category: 'freshwater' },
-    { name: '꾸구리', emoji: '🐟', category: 'freshwater' },
-    { name: '어름치', emoji: '🐟', category: 'freshwater' },
-    { name: '황어', emoji: '🐟', category: 'freshwater' },
-    { name: '금강모치', emoji: '🐟', category: 'freshwater' },
-    { name: '열목어', emoji: '🐟', category: 'freshwater' },
-    { name: '감돌고기', emoji: '🐟', category: 'freshwater' },
-    { name: '한강납줄개', emoji: '🐠', category: 'freshwater' },
-    { name: '돌상어', emoji: '🐟', category: 'freshwater' },
-    { name: '연준모치', emoji: '🐟', category: 'freshwater' },
-    // 해수 20종
-    { name: '농어', emoji: '🐟', category: 'saltwater' },
-    { name: '방어', emoji: '🐟', category: 'saltwater' },
-    { name: '도미', emoji: '🐠', category: 'saltwater' },
-    { name: '광어', emoji: '🐟', category: 'saltwater' },
-    { name: '갈치', emoji: '🐟', category: 'saltwater' },
-    { name: '문어', emoji: '🐙', category: 'saltwater' },
-    { name: '오징어', emoji: '🦑', category: 'saltwater' },
-    { name: '꽃게', emoji: '🦀', category: 'saltwater' },
-    { name: '연어', emoji: '🐟', category: 'saltwater' },
-    { name: '장어', emoji: '🐍', category: 'saltwater' },
-    { name: '복어', emoji: '🐡', category: 'saltwater' },
-    { name: '우럭', emoji: '🐟', category: 'saltwater' },
-    { name: '감성돔', emoji: '🐟', category: 'saltwater' },
-    { name: '삼치', emoji: '🐟', category: 'saltwater' },
-    { name: '전복', emoji: '🐚', category: 'saltwater' },
-    { name: '성게', emoji: '🦔', category: 'saltwater' },
-    { name: '주꾸미', emoji: '🐙', category: 'saltwater' },
-    { name: '참돔', emoji: '🐠', category: 'saltwater' },
-    { name: '벤자리', emoji: '🐟', category: 'saltwater' },
-    { name: '부시리', emoji: '🐟', category: 'saltwater' },
-    // 열대 5종
-    { name: '흰동가리', emoji: '🐠', category: 'tropical' },
-    { name: '블루탱', emoji: '🐠', category: 'tropical' },
-    { name: '디스커스', emoji: '🐠', category: 'tropical' },
-    { name: '피라냐', emoji: '🐟', category: 'tropical' },
-    { name: '아로와나', emoji: '🐟', category: 'tropical' },
-  ],
-  suffixes: [
-    '',
-    '',
-    '(+1)',
-    '(진화형)',
-    '(아종)',
-    '(알비노)',
-    '(고대종)',
-    '(변이체)',
-  ],
-}
-
-// ── Rare fish template: 20 prefixes × 30 bases × 8 suffixes = 4,800 ──
-const rareFishTemplate: FishTemplate = {
-  prefixes: [
-    '불꽃의',
-    '얼음의',
-    '번개의',
-    '수정의',
-    '암흑의',
-    '황금의',
-    '은하의',
-    '고대의',
-    '전설적인',
-    '심해의',
-    '극지방의',
-    '남극의',
-    '북극의',
-    '고급',
-    '왕',
-    '대왕',
-    '초대형',
-    '무지개빛',
-    '진주빛',
-    '용의',
-  ],
-  bases: [
-    { name: '참치', emoji: '🐟', category: 'saltwater' },
-    { name: '상어', emoji: '🦈', category: 'saltwater' },
-    { name: '해파리', emoji: '🪼', category: 'saltwater' },
-    { name: '다랑어', emoji: '🐟', category: 'saltwater' },
-    { name: '킹크랩', emoji: '🦀', category: 'deep_sea' },
-    { name: '전기뱀장어', emoji: '⚡', category: 'tropical' },
-    { name: '만타레이', emoji: '🐟', category: 'saltwater' },
-    { name: '철갑상어', emoji: '🐟', category: 'freshwater' },
-    { name: '대게', emoji: '🦀', category: 'saltwater' },
-    { name: '랍스터', emoji: '🦞', category: 'saltwater' },
-    { name: '귀상어', emoji: '🦈', category: 'saltwater' },
-    { name: '돌돔', emoji: '🐟', category: 'saltwater' },
-    { name: '붉바리', emoji: '🐟', category: 'saltwater' },
-    { name: '민어', emoji: '🐟', category: 'saltwater' },
-    { name: '피라루쿠', emoji: '🐟', category: 'tropical' },
-    { name: '플라워혼', emoji: '🐠', category: 'tropical' },
-    { name: '바다거북', emoji: '🐢', category: 'saltwater' },
-    { name: '무지개열대어', emoji: '🌈', category: 'tropical' },
-    { name: '심해새우', emoji: '🦐', category: 'deep_sea' },
-    { name: '열대해마', emoji: '🐟', category: 'tropical' },
-    { name: '넙치', emoji: '🐟', category: 'saltwater' },
-    { name: '전기메기', emoji: '⚡', category: 'tropical' },
-    { name: '쥐가오리', emoji: '🐟', category: 'saltwater' },
-    { name: '나비고기', emoji: '🐠', category: 'tropical' },
-    { name: '곰치', emoji: '🐍', category: 'saltwater' },
-    { name: '흑돔', emoji: '🐟', category: 'saltwater' },
-    { name: '쏠배감펭', emoji: '🐟', category: 'tropical' },
-    { name: '돗돔', emoji: '🐟', category: 'saltwater' },
-    { name: '날치', emoji: '🐟', category: 'saltwater' },
-    { name: '청새치', emoji: '🐟', category: 'saltwater' },
-  ],
-  suffixes: ['', '', '(★)', '(★★)', '(변이)', '(고대형)', '(진화)', '(아종)'],
-}
-
-// ── Epic fish template: 18 prefixes × 20 bases × 7 suffixes = 2,520 ──
-const epicFishTemplate: FishTemplate = {
-  prefixes: [
-    '용의',
-    '피닉스의',
-    '심연의',
-    '천상의',
-    '폭풍의',
-    '지배자의',
-    '파괴자의',
-    '수호자의',
-    '고대의',
-    '영원의',
-    '운명의',
-    '심판의',
-    '절대의',
-    '차원의',
-    '영혼의',
-    '마왕의',
-    '제왕의',
-    '불멸의',
-  ],
-  bases: [
-    { name: '대왕오징어', emoji: '🦑', category: 'deep_sea' },
-    { name: '백상아리', emoji: '🦈', category: 'saltwater' },
-    { name: '개복치', emoji: '🐟', category: 'saltwater' },
-    { name: '심해아귀', emoji: '🐟', category: 'deep_sea' },
-    { name: '실러캔스', emoji: '🐟', category: 'deep_sea' },
-    { name: '고래상어', emoji: '🦈', category: 'saltwater' },
-    { name: '범고래', emoji: '🐋', category: 'saltwater' },
-    { name: '바이퍼피쉬', emoji: '🐟', category: 'deep_sea' },
-    { name: '산갈치', emoji: '🐟', category: 'deep_sea' },
-    { name: '드래곤피쉬', emoji: '🐉', category: 'deep_sea' },
-    { name: '나폴레옹피쉬', emoji: '🐠', category: 'tropical' },
-    { name: '블루핀참치', emoji: '🐟', category: 'saltwater' },
-    { name: '진주조개', emoji: '🐚', category: 'saltwater' },
-    { name: '환도상어', emoji: '🦈', category: 'saltwater' },
-    { name: '수정해파리', emoji: '🪼', category: 'deep_sea' },
-    { name: '블루링문어', emoji: '🐙', category: 'tropical' },
-    { name: '용궁거북', emoji: '🐢', category: 'mythical' },
-    { name: '심해해삼', emoji: '🫠', category: 'deep_sea' },
-    { name: '흡혈오징어', emoji: '🦑', category: 'deep_sea' },
-    { name: '태평양참치', emoji: '🐟', category: 'saltwater' },
-  ],
-  suffixes: ['', '', '(★★)', '(★★★)', '(각성)', '(초월)', '(영혼체)'],
-}
-
-// ── Legendary fish template: 15 prefixes × 15 bases × 7 suffixes = 1,575 ──
-const legendaryFishTemplate: FishTemplate = {
-  prefixes: [
-    '신들의',
-    '세계를 가르는',
-    '별을 삼킨',
-    '차원을 찢는',
-    '영겁의',
-    '만물의',
-    '절대자의',
-    '시간을 멈추는',
-    '영혼을 지배하는',
-    '신화 속',
-    '태초의',
-    '종말의',
-    '신성한',
-    '불멸의',
-    '초월한',
-  ],
-  bases: [
-    { name: '용의물고기', emoji: '🐉', category: 'mythical' },
-    { name: '다이아몬드물고기', emoji: '💎', category: 'mythical' },
-    { name: '불사조물고기', emoji: '🐦‍🔥', category: 'mythical' },
-    { name: '메갈로돈', emoji: '🦈', category: 'mythical' },
-    { name: '황금고래', emoji: '🐋', category: 'mythical' },
-    { name: '일각고래', emoji: '🦄', category: 'mythical' },
-    { name: '등불고기', emoji: '💡', category: 'deep_sea' },
-    { name: '얼음물고기', emoji: '🧊', category: 'deep_sea' },
-    { name: '대왕산호', emoji: '🌈', category: 'tropical' },
-    { name: '눈동자개', emoji: '👑', category: 'freshwater' },
-    { name: '크리스탈새우', emoji: '💎', category: 'deep_sea' },
-    { name: '심연의문어', emoji: '🐙', category: 'deep_sea' },
-    { name: '에메랄드랍스터', emoji: '🦞', category: 'saltwater' },
-    { name: '천사고래', emoji: '👼', category: 'mythical' },
-    { name: '우주거북', emoji: '🐢', category: 'mythical' },
-  ],
-  suffixes: ['', '', '(★★★)', '(★★★★)', '(궁극)', '(초월체)', '(신격)'],
-}
-
-// ── Mythic fish template: 12 prefixes × 10 bases × 5 suffixes = 600 ──
-const mythicFishTemplate: FishTemplate = {
-  prefixes: [
-    '우주를 삼키는',
-    '차원을 지배하는',
-    '만물을 창조하는',
-    '시공간의',
-    '존재를 초월하는',
-    '세계를 리셋하는',
-    '신을 심판하는',
-    '현실을 무시하는',
-    '법칙을 파괴하는',
-    '은하를 집어삼키는',
-    '다중우주의',
-    '인과율을 무시하는',
-  ],
-  bases: [
-    { name: '세계물고기', emoji: '🌍', category: 'mythical' },
-    { name: '시공간고래', emoji: '🐋', category: 'mythical' },
-    { name: '무한의문어', emoji: '🐙', category: 'mythical' },
-    { name: '신의금붕어', emoji: '🐠', category: 'mythical' },
-    { name: '리바이어던', emoji: '🐲', category: 'mythical' },
-    { name: '요르문간드', emoji: '🐍', category: 'mythical' },
-    { name: '인어', emoji: '🧜‍♀️', category: 'mythical' },
-    { name: '여의주', emoji: '🔮', category: 'mythical' },
-    { name: '심연의눈', emoji: '👁️', category: 'mythical' },
-    { name: '태초의물방울', emoji: '💧', category: 'mythical' },
-  ],
-  suffixes: ['', '', '(Ω)', '(∞)', '(■■■)'],
-}
-
-// ── Seeded pseudo-random for deterministic fish generation ──
-function fishSeededRandom(seed: number): () => number {
-  let s = seed
-  return () => {
-    s = (s * 1664525 + 1013904223) & 0xffffffff
-    return (s >>> 0) / 0xffffffff
-  }
-}
-
-function generateFish(
-  template: FishTemplate,
-  rarity: FishRarity,
-  targetCount: number,
-  seed: number,
-): FishType[] {
-  const rand = fishSeededRandom(seed)
-  const items: FishType[] = []
-  const usedNames = new Set<string>()
-  const range = fishStatRanges[rarity]
-  const randBetween = (min: number, max: number) => min + rand() * (max - min)
-
-  for (const prefix of template.prefixes) {
-    for (const base of template.bases) {
-      for (const suffix of template.suffixes) {
-        if (items.length >= targetCount) break
-        const name = `${prefix} ${base.name}${suffix ? ' ' + suffix : ''}`
-        if (usedNames.has(name)) continue
-        usedNames.add(name)
-
-        const descs = fishDescTemplates[base.category]
-        const description = descs[Math.floor(rand() * descs.length)]
-
-        items.push({
-          name,
-          emoji: base.emoji,
-          rarity,
-          minSize: Math.round(randBetween(range.minSize[0], range.minSize[1])),
-          maxSize: Math.round(randBetween(range.maxSize[0], range.maxSize[1])),
-          baseValue: Math.round(
-            randBetween(range.baseValue[0], range.baseValue[1]),
-          ),
-          description,
-          category: base.category,
-        })
-      }
-      if (items.length >= targetCount) break
-    }
-    if (items.length >= targetCount) break
-  }
-  return items.slice(0, targetCount)
-}
-
-// Generate fish per rarity to fill up to ~30,000 total
-const genCommon = generateFish(commonFishTemplate, 'common', 13500, 12345)
-const genUncommon = generateFish(uncommonFishTemplate, 'uncommon', 7500, 23456)
-const genRare = generateFish(rareFishTemplate, 'rare', 4500, 34567)
-const genEpic = generateFish(epicFishTemplate, 'epic', 2400, 45678)
-const genLegendary = generateFish(
-  legendaryFishTemplate,
-  'legendary',
-  1500,
-  56789,
-)
-const genMythic = generateFish(mythicFishTemplate, 'mythic', 600, 67890)
-
-function mergeFishAndDedup(...arrays: FishType[][]): FishType[] {
-  const seen = new Set<string>()
-  const result: FishType[] = []
-  for (const arr of arrays) {
-    for (const fish of arr) {
-      if (!seen.has(fish.name)) {
-        seen.add(fish.name)
-        result.push(fish)
-      }
-    }
-  }
-  return result
-}
-
-export const fishPool: FishType[] = mergeFishAndDedup(
-  handcraftedFish,
-  genCommon,
-  genUncommon,
-  genRare,
-  genEpic,
-  genLegendary,
-  genMythic,
-)
-
-// ══════════════════════════════════════
-//  LABELS & COLORS
-// ══════════════════════════════════════
+// ══════════════════════════════════════════════════════════
+//  Labels & colors (mirror src/render/theme.ts for embed fallback paths)
+// ══════════════════════════════════════════════════════════
 
 export const fishRarityLabels: Record<string, string> = {
   common: '⬜ 일반',
@@ -2535,28 +325,406 @@ export const fishRarityLabels: Record<string, string> = {
 }
 
 export const fishRarityColors: Record<string, number> = {
-  common: 0x808080,
-  uncommon: 0x2ecc71,
-  rare: 0x3498db,
-  epic: 0x9b59b6,
-  legendary: 0xf39c12,
-  mythic: 0xff0000,
+  common: 0x9ca3af,
+  uncommon: 0x22c55e,
+  rare: 0x3b82f6,
+  epic: 0xa855f7,
+  legendary: 0xfacc15,
+  mythic: 0xef4444,
 }
 
-// ══════════════════════════════════════
-//  FISHING MECHANICS
-// ══════════════════════════════════════
+// ══════════════════════════════════════════════════════════
+//  Fish dataset — curated, real Korean/Asian fish + mythical
+// ══════════════════════════════════════════════════════════
 
-export function getAvailableFish(spotLevel: number): FishType[] {
-  const allowedRarities: string[] = ['common']
-  if (spotLevel >= 2) allowedRarities.push('uncommon')
-  if (spotLevel >= 3) allowedRarities.push('rare')
-  if (spotLevel >= 4) allowedRarities.push('epic')
-  if (spotLevel >= 5) allowedRarities.push('legendary', 'mythic')
-  return fishPool.filter((f) => allowedRarities.includes(f.rarity))
+// Helper to keep entries terse. Defaults reflect "no constraint".
+type FishDef = Partial<FishType> &
+  Pick<
+    FishType,
+    | 'id'
+    | 'name'
+    | 'emoji'
+    | 'rarity'
+    | 'habitat'
+    | 'size'
+    | 'weightCoeff'
+    | 'baseValuePerKg'
+    | 'description'
+  >
+
+function f(def: FishDef): FishType {
+  return {
+    season: ['all'],
+    timeOfDay: ['any'],
+    baitTypes: ['any'],
+    ...def,
+  } as FishType
 }
 
-// Roll a fishing event based on pollution level
+// ─── COMMON (60) ──────────────────────────────────────────
+const commonFish: FishType[] = [
+  // Freshwater
+  f({ id: 'crucian_carp', name: '붕어', scientificName: 'Carassius carassius', emoji: '🐟', rarity: 'common', habitat: ['freshwater'], baitTypes: ['worm', 'pellet'], size: { min: 8, max: 35, mean: 18, stdDev: 5 }, weightCoeff: 14, baseValuePerKg: 80, description: '한국에서 가장 흔한 민물고기' }),
+  f({ id: 'common_carp', name: '잉어', scientificName: 'Cyprinus carpio', emoji: '🐟', rarity: 'common', habitat: ['freshwater'], baitTypes: ['worm', 'pellet'], size: { min: 20, max: 80, mean: 45, stdDev: 12 }, weightCoeff: 16, baseValuePerKg: 70, description: '연못의 터줏대감' }),
+  f({ id: 'mudfish', name: '미꾸라지', scientificName: 'Misgurnus anguillicaudatus', emoji: '🐍', rarity: 'common', habitat: ['freshwater'], baitTypes: ['worm'], size: { min: 6, max: 22, mean: 12, stdDev: 4 }, weightCoeff: 2, baseValuePerKg: 90, description: '미끌미끌한 민물고기, 추어탕의 주재료' }),
+  f({ id: 'minnow', name: '피라미', scientificName: 'Zacco platypus', emoji: '🐠', rarity: 'common', habitat: ['freshwater'], baitTypes: ['worm'], size: { min: 5, max: 16, mean: 9, stdDev: 3 }, weightCoeff: 4, baseValuePerKg: 60, description: '맑은 개울의 작은 물고기' }),
+  f({ id: 'medaka', name: '송사리', scientificName: 'Oryzias latipes', emoji: '🐟', rarity: 'common', habitat: ['freshwater'], baitTypes: ['worm'], size: { min: 2, max: 8, mean: 4, stdDev: 1.5 }, weightCoeff: 1, baseValuePerKg: 50, description: '정말 작은 민물고기' }),
+  f({ id: 'pond_smelt', name: '빙어', scientificName: 'Hypomesus nipponensis', emoji: '🐟', rarity: 'common', habitat: ['freshwater'], season: ['winter'], baitTypes: ['worm'], size: { min: 5, max: 15, mean: 9, stdDev: 3 }, weightCoeff: 3, baseValuePerKg: 100, description: '겨울 빙어낚시의 주인공' }),
+  f({ id: 'chinese_minnow', name: '버들치', emoji: '🐟', rarity: 'common', habitat: ['freshwater'], baitTypes: ['worm'], size: { min: 4, max: 12, mean: 7, stdDev: 2 }, weightCoeff: 3, baseValuePerKg: 50, description: '맑은 계곡의 작은 물고기' }),
+  f({ id: 'bitterling', name: '납자루', emoji: '🐟', rarity: 'common', habitat: ['freshwater'], baitTypes: ['worm'], size: { min: 3, max: 10, mean: 6, stdDev: 2 }, weightCoeff: 4, baseValuePerKg: 60, description: '조개에 알을 낳는 신기한 물고기' }),
+  f({ id: 'rock_minnow', name: '돌고기', emoji: '🐟', rarity: 'common', habitat: ['freshwater'], baitTypes: ['worm'], size: { min: 5, max: 15, mean: 9, stdDev: 3 }, weightCoeff: 5, baseValuePerKg: 60, description: '돌 틈에 사는 물고기' }),
+  f({ id: 'sand_loach', name: '모래무지', emoji: '🐟', rarity: 'common', habitat: ['freshwater'], baitTypes: ['worm'], size: { min: 5, max: 18, mean: 10, stdDev: 3 }, weightCoeff: 4, baseValuePerKg: 60, description: '모래 바닥을 좋아한다' }),
+  f({ id: 'bluegill', name: '블루길', scientificName: 'Lepomis macrochirus', emoji: '🐠', rarity: 'common', habitat: ['freshwater'], baitTypes: ['worm', 'lure'], size: { min: 8, max: 25, mean: 15, stdDev: 4 }, weightCoeff: 10, baseValuePerKg: 50, description: '외래종 — 생태계 교란종' }),
+  f({ id: 'crucian_carp_pp', name: '떡붕어', emoji: '🐟', rarity: 'common', habitat: ['freshwater'], baitTypes: ['pellet'], size: { min: 15, max: 40, mean: 25, stdDev: 6 }, weightCoeff: 18, baseValuePerKg: 75, description: '떡밥에 잘 무는 큰 붕어' }),
+  f({ id: 'common_minnow', name: '갈겨니', emoji: '🐟', rarity: 'common', habitat: ['freshwater'], baitTypes: ['worm'], size: { min: 6, max: 16, mean: 10, stdDev: 3 }, weightCoeff: 4, baseValuePerKg: 55, description: '맑은 강의 작은 물고기' }),
+  f({ id: 'gizzard_shad', name: '누치', emoji: '🐟', rarity: 'common', habitat: ['freshwater'], baitTypes: ['worm', 'lure'], size: { min: 15, max: 50, mean: 28, stdDev: 7 }, weightCoeff: 10, baseValuePerKg: 70, description: '강의 잡어' }),
+  f({ id: 'spotted_steed', name: '얼룩동사리', emoji: '🐟', rarity: 'common', habitat: ['freshwater'], baitTypes: ['worm'], size: { min: 6, max: 18, mean: 11, stdDev: 3 }, weightCoeff: 6, baseValuePerKg: 60, description: '바닥에 사는 잡식성 물고기' }),
+  f({ id: 'topmouth_gudgeon', name: '참붕어', emoji: '🐟', rarity: 'common', habitat: ['freshwater'], baitTypes: ['worm'], size: { min: 4, max: 11, mean: 7, stdDev: 2 }, weightCoeff: 4, baseValuePerKg: 50, description: '흔한 민물 잡어' }),
+  // Saltwater commons
+  f({ id: 'mackerel', name: '고등어', scientificName: 'Scomber japonicus', emoji: '🐟', rarity: 'common', habitat: ['saltwater'], baitTypes: ['lure', 'shrimp'], size: { min: 20, max: 50, mean: 30, stdDev: 7 }, weightCoeff: 6, baseValuePerKg: 100, description: '국민 생선' }),
+  f({ id: 'sardine', name: '정어리', scientificName: 'Sardinops sagax', emoji: '🐟', rarity: 'common', habitat: ['saltwater'], baitTypes: ['shrimp'], size: { min: 10, max: 25, mean: 16, stdDev: 4 }, weightCoeff: 4, baseValuePerKg: 70, description: '떼지어 다니는 작은 청어과 어류' }),
+  f({ id: 'anchovy', name: '멸치', scientificName: 'Engraulis japonicus', emoji: '🐟', rarity: 'common', habitat: ['saltwater'], baitTypes: ['shrimp'], size: { min: 5, max: 15, mean: 9, stdDev: 2 }, weightCoeff: 2, baseValuePerKg: 110, description: '국물의 기본' }),
+  f({ id: 'sandlance', name: '까나리', emoji: '🐟', rarity: 'common', habitat: ['saltwater'], baitTypes: ['shrimp'], size: { min: 6, max: 18, mean: 11, stdDev: 3 }, weightCoeff: 1.5, baseValuePerKg: 80, description: '액젓의 주재료' }),
+  f({ id: 'horse_mackerel', name: '전갱이', scientificName: 'Trachurus japonicus', emoji: '🐟', rarity: 'common', habitat: ['saltwater'], baitTypes: ['lure', 'shrimp'], size: { min: 15, max: 40, mean: 23, stdDev: 6 }, weightCoeff: 5, baseValuePerKg: 90, description: '회로도 구이로도 좋다' }),
+  f({ id: 'mullet', name: '숭어', scientificName: 'Mugil cephalus', emoji: '🐟', rarity: 'common', habitat: ['saltwater', 'freshwater'], baitTypes: ['worm', 'pellet'], size: { min: 20, max: 60, mean: 35, stdDev: 9 }, weightCoeff: 8, baseValuePerKg: 90, description: '강과 바다를 오가는 물고기' }),
+  f({ id: 'gray_mullet_juvenile', name: '모쟁이', emoji: '🐟', rarity: 'common', habitat: ['saltwater'], baitTypes: ['worm'], size: { min: 8, max: 20, mean: 13, stdDev: 3 }, weightCoeff: 5, baseValuePerKg: 75, description: '숭어의 어린 시절' }),
+  f({ id: 'pacific_saury', name: '꽁치', scientificName: 'Cololabis saira', emoji: '🐟', rarity: 'common', habitat: ['saltwater'], baitTypes: ['lure', 'shrimp'], size: { min: 20, max: 35, mean: 27, stdDev: 4 }, weightCoeff: 3, baseValuePerKg: 100, description: '가을 꽁치 구이!' }),
+  f({ id: 'pollack_juvenile', name: '노가리', emoji: '🐟', rarity: 'common', habitat: ['saltwater'], baitTypes: ['lure'], size: { min: 15, max: 30, mean: 22, stdDev: 4 }, weightCoeff: 4, baseValuePerKg: 70, description: '명태의 새끼, 안주의 친구' }),
+  f({ id: 'small_bream', name: '도다리', emoji: '🐟', rarity: 'common', habitat: ['saltwater'], baitTypes: ['shrimp'], size: { min: 15, max: 35, mean: 22, stdDev: 5 }, weightCoeff: 8, baseValuePerKg: 110, description: '봄 도다리쑥국' }),
+  f({ id: 'gizzard_shad_sw', name: '전어', scientificName: 'Konosirus punctatus', emoji: '🐟', rarity: 'common', habitat: ['saltwater'], baitTypes: ['shrimp'], season: ['autumn'], size: { min: 15, max: 30, mean: 22, stdDev: 4 }, weightCoeff: 5, baseValuePerKg: 120, description: '집 나간 며느리도 돌아오는 가을 별미' }),
+  f({ id: 'bullet_tuna', name: '점다랑어', emoji: '🐟', rarity: 'common', habitat: ['saltwater'], baitTypes: ['lure'], size: { min: 25, max: 50, mean: 35, stdDev: 6 }, weightCoeff: 8, baseValuePerKg: 110, description: '작은 다랑어' }),
+  f({ id: 'rockfish_juvenile', name: '뽀돌락', emoji: '🐟', rarity: 'common', habitat: ['saltwater'], baitTypes: ['shrimp'], size: { min: 10, max: 22, mean: 15, stdDev: 3 }, weightCoeff: 6, baseValuePerKg: 90, description: '볼락의 어린 시절' }),
+  f({ id: 'chub', name: '끄리', emoji: '🐟', rarity: 'common', habitat: ['freshwater'], baitTypes: ['lure', 'worm'], size: { min: 15, max: 50, mean: 28, stdDev: 8 }, weightCoeff: 8, baseValuePerKg: 65, description: '강의 약탈자' }),
+  f({ id: 'eel_baby', name: '실뱀장어', emoji: '🐍', rarity: 'common', habitat: ['freshwater', 'saltwater'], baitTypes: ['worm'], size: { min: 5, max: 10, mean: 7, stdDev: 1 }, weightCoeff: 0.8, baseValuePerKg: 200, description: '뱀장어의 새끼, 비싸다' }),
+  f({ id: 'silver_carp', name: '은연어', emoji: '🐟', rarity: 'common', habitat: ['freshwater'], baitTypes: ['lure'], size: { min: 30, max: 70, mean: 45, stdDev: 10 }, weightCoeff: 12, baseValuePerKg: 80, description: '큰 잉어과 외래종' }),
+  f({ id: 'baby_octopus', name: '주꾸미', scientificName: 'Octopus ocellatus', emoji: '🐙', rarity: 'common', habitat: ['saltwater'], baitTypes: ['lure'], season: ['spring'], size: { min: 10, max: 25, mean: 16, stdDev: 4 }, weightCoeff: 5, baseValuePerKg: 130, description: '봄 주꾸미!' }),
+  f({ id: 'stickleback', name: '큰가시고기', emoji: '🐟', rarity: 'common', habitat: ['freshwater', 'saltwater'], baitTypes: ['worm'], size: { min: 4, max: 12, mean: 7, stdDev: 2 }, weightCoeff: 2, baseValuePerKg: 60, description: '가시 돋힌 작은 물고기' }),
+  f({ id: 'half_beak', name: '학꽁치', emoji: '🐟', rarity: 'common', habitat: ['saltwater'], baitTypes: ['shrimp'], size: { min: 15, max: 30, mean: 22, stdDev: 4 }, weightCoeff: 2, baseValuePerKg: 90, description: '주둥이가 긴 작은 물고기' }),
+  f({ id: 'common_pond_smelt', name: '바다빙어', emoji: '🐟', rarity: 'common', habitat: ['saltwater'], baitTypes: ['shrimp'], season: ['winter'], size: { min: 8, max: 20, mean: 13, stdDev: 3 }, weightCoeff: 3, baseValuePerKg: 80, description: '바다의 빙어' }),
+  f({ id: 'long_jaw', name: '긴턱멸', emoji: '🐟', rarity: 'common', habitat: ['saltwater'], baitTypes: ['shrimp'], size: { min: 6, max: 16, mean: 10, stdDev: 3 }, weightCoeff: 2, baseValuePerKg: 60, description: '주둥이가 긴 멸치' }),
+  f({ id: 'rabbit_fish', name: '독가시치', emoji: '🐠', rarity: 'common', habitat: ['saltwater'], baitTypes: ['worm'], size: { min: 12, max: 28, mean: 18, stdDev: 4 }, weightCoeff: 7, baseValuePerKg: 75, description: '독가시가 있다, 조심!' }),
+  f({ id: 'sand_eel', name: '양미리', emoji: '🐟', rarity: 'common', habitat: ['saltwater'], baitTypes: ['shrimp'], size: { min: 10, max: 22, mean: 15, stdDev: 3 }, weightCoeff: 2, baseValuePerKg: 70, description: '겨울 양미리 구이' }),
+  f({ id: 'common_dace', name: '갈겨니류', emoji: '🐟', rarity: 'common', habitat: ['freshwater'], baitTypes: ['worm'], size: { min: 8, max: 22, mean: 14, stdDev: 4 }, weightCoeff: 4, baseValuePerKg: 55, description: '강 중상류의 작은 물고기' }),
+  f({ id: 'common_smelt', name: '왜몰개', emoji: '🐟', rarity: 'common', habitat: ['freshwater'], baitTypes: ['worm'], size: { min: 4, max: 11, mean: 7, stdDev: 2 }, weightCoeff: 2, baseValuePerKg: 50, description: '논두렁의 작은 물고기' }),
+  f({ id: 'silvery_dace', name: '은어새끼', emoji: '🐟', rarity: 'common', habitat: ['freshwater'], baitTypes: ['worm'], size: { min: 5, max: 14, mean: 9, stdDev: 2 }, weightCoeff: 3, baseValuePerKg: 90, description: '은어의 어린 시절' }),
+  f({ id: 'spotted_loach', name: '점박이미꾸라지', emoji: '🐍', rarity: 'common', habitat: ['freshwater'], baitTypes: ['worm'], size: { min: 6, max: 18, mean: 11, stdDev: 3 }, weightCoeff: 2, baseValuePerKg: 65, description: '점박이 무늬의 미꾸라지' }),
+  f({ id: 'gobi', name: '망둑어', emoji: '🐟', rarity: 'common', habitat: ['saltwater', 'freshwater'], baitTypes: ['worm'], size: { min: 8, max: 22, mean: 13, stdDev: 4 }, weightCoeff: 4, baseValuePerKg: 70, description: '갯벌의 점프하는 물고기' }),
+  f({ id: 'common_chub', name: '동사리', emoji: '🐟', rarity: 'common', habitat: ['freshwater'], baitTypes: ['worm'], size: { min: 8, max: 22, mean: 13, stdDev: 4 }, weightCoeff: 5, baseValuePerKg: 60, description: '바닥에 사는 잡어' }),
+  f({ id: 'kid_shark', name: '두툽상어', emoji: '🦈', rarity: 'common', habitat: ['saltwater'], baitTypes: ['shrimp'], size: { min: 30, max: 60, mean: 45, stdDev: 8 }, weightCoeff: 5, baseValuePerKg: 80, description: '작은 상어, 바닥에 산다' }),
+  f({ id: 'starry_flounder', name: '별가자미', emoji: '🐟', rarity: 'common', habitat: ['saltwater'], baitTypes: ['shrimp'], size: { min: 15, max: 35, mean: 22, stdDev: 5 }, weightCoeff: 8, baseValuePerKg: 100, description: '별 무늬의 작은 가자미' }),
+  f({ id: 'cod_baby', name: '대구새끼', emoji: '🐟', rarity: 'common', habitat: ['saltwater'], baitTypes: ['lure'], size: { min: 20, max: 40, mean: 28, stdDev: 5 }, weightCoeff: 6, baseValuePerKg: 100, description: '대구의 어린 시절' }),
+  f({ id: 'small_squid', name: '꼴뚜기', emoji: '🦑', rarity: 'common', habitat: ['saltwater'], baitTypes: ['lure'], size: { min: 5, max: 15, mean: 9, stdDev: 3 }, weightCoeff: 3, baseValuePerKg: 90, description: '작은 오징어' }),
+  f({ id: 'mantis_shrimp', name: '갯가재', emoji: '🦐', rarity: 'common', habitat: ['saltwater'], baitTypes: ['worm'], size: { min: 8, max: 18, mean: 12, stdDev: 3 }, weightCoeff: 6, baseValuePerKg: 100, description: '강력한 앞발의 갑각류' }),
+  f({ id: 'crab_baby', name: '어린 게', emoji: '🦀', rarity: 'common', habitat: ['saltwater'], baitTypes: ['worm'], size: { min: 5, max: 15, mean: 9, stdDev: 3 }, weightCoeff: 6, baseValuePerKg: 90, description: '바닷가의 작은 게' }),
+  f({ id: 'eel_grass_fish', name: '실고기', emoji: '🐠', rarity: 'common', habitat: ['saltwater'], baitTypes: ['shrimp'], size: { min: 8, max: 20, mean: 13, stdDev: 3 }, weightCoeff: 1, baseValuePerKg: 60, description: '해초 사이에 사는 가는 물고기' }),
+  f({ id: 'puffer_juv', name: '복어새끼', emoji: '🐡', rarity: 'common', habitat: ['saltwater'], baitTypes: ['shrimp'], size: { min: 8, max: 20, mean: 13, stdDev: 3 }, weightCoeff: 8, baseValuePerKg: 80, description: '복어의 어린 시절, 독은 약함' }),
+  f({ id: 'snake_fish_baby', name: '꺽지', emoji: '🐟', rarity: 'common', habitat: ['freshwater'], baitTypes: ['lure'], size: { min: 10, max: 22, mean: 15, stdDev: 3 }, weightCoeff: 7, baseValuePerKg: 80, description: '계곡의 포식자' }),
+  f({ id: 'barbel_steed', name: '누치류', emoji: '🐟', rarity: 'common', habitat: ['freshwater'], baitTypes: ['worm'], size: { min: 15, max: 40, mean: 25, stdDev: 6 }, weightCoeff: 9, baseValuePerKg: 70, description: '큰 강의 잡어' }),
+  f({ id: 'small_jellyfish', name: '해파리', emoji: '🪼', rarity: 'common', habitat: ['saltwater'], baitTypes: ['any'], size: { min: 10, max: 30, mean: 18, stdDev: 5 }, weightCoeff: 4, baseValuePerKg: 40, description: '말랑말랑한 바다 생물' }),
+  f({ id: 'rockfish_juv', name: '쏨뱅이새끼', emoji: '🐟', rarity: 'common', habitat: ['saltwater'], baitTypes: ['shrimp'], size: { min: 10, max: 22, mean: 15, stdDev: 3 }, weightCoeff: 7, baseValuePerKg: 85, description: '쏨뱅이의 어린 시절' }),
+  f({ id: 'small_octopus', name: '낙지새끼', emoji: '🐙', rarity: 'common', habitat: ['saltwater'], baitTypes: ['lure'], size: { min: 10, max: 25, mean: 16, stdDev: 4 }, weightCoeff: 4, baseValuePerKg: 130, description: '낙지의 어린 시절' }),
+  f({ id: 'small_cuttle', name: '갑오징어', scientificName: 'Sepia esculenta', emoji: '🦑', rarity: 'common', habitat: ['saltwater'], baitTypes: ['lure'], size: { min: 10, max: 25, mean: 16, stdDev: 4 }, weightCoeff: 8, baseValuePerKg: 110, description: '뼈가 있는 오징어' }),
+  f({ id: 'small_sea_cucumber', name: '해삼', emoji: '🫠', rarity: 'common', habitat: ['saltwater'], baitTypes: ['any'], size: { min: 8, max: 25, mean: 15, stdDev: 4 }, weightCoeff: 7, baseValuePerKg: 90, description: '바다의 인삼' }),
+]
+
+// ─── UNCOMMON (50) ────────────────────────────────────────
+const uncommonFish: FishType[] = [
+  f({ id: 'catfish', name: '메기', scientificName: 'Silurus asotus', emoji: '🐟', rarity: 'uncommon', habitat: ['freshwater'], baitTypes: ['worm', 'special'], timeOfDay: ['night', 'dusk'], size: { min: 30, max: 90, mean: 55, stdDev: 12 }, weightCoeff: 18, baseValuePerKg: 200, description: '강과 호수의 야행성 포식자' }),
+  f({ id: 'snakehead', name: '가물치', scientificName: 'Channa argus', emoji: '🐟', rarity: 'uncommon', habitat: ['freshwater'], baitTypes: ['lure', 'worm'], size: { min: 30, max: 100, mean: 55, stdDev: 15 }, weightCoeff: 18, baseValuePerKg: 220, description: '한국 토종 포식자, 가물치죽 별미' }),
+  f({ id: 'eel', name: '뱀장어', scientificName: 'Anguilla japonica', emoji: '🐍', rarity: 'uncommon', habitat: ['freshwater', 'saltwater'], baitTypes: ['worm'], timeOfDay: ['night'], size: { min: 30, max: 100, mean: 55, stdDev: 14 }, weightCoeff: 3, baseValuePerKg: 350, description: '뱀장어구이!' }),
+  f({ id: 'rainbow_trout', name: '무지개송어', scientificName: 'Oncorhynchus mykiss', emoji: '🐟', rarity: 'uncommon', habitat: ['freshwater'], baitTypes: ['lure', 'pellet'], season: ['spring', 'autumn'], size: { min: 25, max: 70, mean: 40, stdDev: 10 }, weightCoeff: 12, baseValuePerKg: 180, description: '무지개빛 옆구리의 송어' }),
+  f({ id: 'masu_salmon', name: '산천어', scientificName: 'Oncorhynchus masou', emoji: '🐟', rarity: 'uncommon', habitat: ['freshwater'], baitTypes: ['lure'], size: { min: 20, max: 50, mean: 32, stdDev: 8 }, weightCoeff: 10, baseValuePerKg: 200, description: '계곡의 청정수에 사는 송어' }),
+  f({ id: 'lenok', name: '열목어', emoji: '🐟', rarity: 'uncommon', habitat: ['freshwater'], baitTypes: ['lure'], size: { min: 25, max: 60, mean: 38, stdDev: 9 }, weightCoeff: 11, baseValuePerKg: 180, description: '천연기념물, 보호 대상' }),
+  f({ id: 'sweetfish', name: '은어', scientificName: 'Plecoglossus altivelis', emoji: '🐟', rarity: 'uncommon', habitat: ['freshwater'], baitTypes: ['lure'], season: ['summer'], size: { min: 15, max: 30, mean: 22, stdDev: 4 }, weightCoeff: 5, baseValuePerKg: 280, description: '향기로운 강 물고기' }),
+  f({ id: 'mandarin', name: '쏘가리', scientificName: 'Siniperca scherzeri', emoji: '🐠', rarity: 'uncommon', habitat: ['freshwater'], baitTypes: ['lure'], size: { min: 25, max: 60, mean: 38, stdDev: 9 }, weightCoeff: 12, baseValuePerKg: 320, description: '강 중상류의 보석' }),
+  f({ id: 'korean_aucha_perch', name: '꺽저기', emoji: '🐟', rarity: 'uncommon', habitat: ['freshwater'], baitTypes: ['lure'], size: { min: 12, max: 28, mean: 18, stdDev: 4 }, weightCoeff: 7, baseValuePerKg: 200, description: '한국 고유종 농어과' }),
+  f({ id: 'common_dab', name: '가자미', scientificName: 'Pleuronectidae sp.', emoji: '🐟', rarity: 'uncommon', habitat: ['saltwater'], baitTypes: ['shrimp'], size: { min: 20, max: 50, mean: 32, stdDev: 7 }, weightCoeff: 10, baseValuePerKg: 220, description: '바닥에 사는 납작한 물고기' }),
+  f({ id: 'olive_flounder', name: '광어', scientificName: 'Paralichthys olivaceus', emoji: '🐟', rarity: 'uncommon', habitat: ['saltwater'], baitTypes: ['lure', 'shrimp'], size: { min: 30, max: 80, mean: 45, stdDev: 11 }, weightCoeff: 11, baseValuePerKg: 280, description: '회의 왕, 광어회!' }),
+  f({ id: 'sea_bass', name: '농어', scientificName: 'Lateolabrax japonicus', emoji: '🐟', rarity: 'uncommon', habitat: ['saltwater'], baitTypes: ['lure'], size: { min: 30, max: 90, mean: 50, stdDev: 12 }, weightCoeff: 9, baseValuePerKg: 240, description: '바다의 사냥꾼' }),
+  f({ id: 'rockfish', name: '우럭', scientificName: 'Sebastes schlegeli', emoji: '🐟', rarity: 'uncommon', habitat: ['saltwater'], baitTypes: ['shrimp'], size: { min: 20, max: 50, mean: 32, stdDev: 7 }, weightCoeff: 10, baseValuePerKg: 220, description: '낚시의 인기 어종' }),
+  f({ id: 'redbanded_rockfish', name: '볼락', scientificName: 'Sebastes inermis', emoji: '🐟', rarity: 'uncommon', habitat: ['saltwater'], baitTypes: ['shrimp'], size: { min: 15, max: 35, mean: 22, stdDev: 5 }, weightCoeff: 8, baseValuePerKg: 240, description: '맛있는 볼락구이' }),
+  f({ id: 'spanish_mackerel', name: '삼치', scientificName: 'Scomberomorus niphonius', emoji: '🐟', rarity: 'uncommon', habitat: ['saltwater'], baitTypes: ['lure'], season: ['autumn'], size: { min: 50, max: 100, mean: 70, stdDev: 12 }, weightCoeff: 7, baseValuePerKg: 230, description: '가을 삼치 구이' }),
+  f({ id: 'hairtail', name: '갈치', scientificName: 'Trichiurus lepturus', emoji: '🐟', rarity: 'uncommon', habitat: ['saltwater'], baitTypes: ['shrimp', 'lure'], timeOfDay: ['night'], size: { min: 50, max: 130, mean: 80, stdDev: 18 }, weightCoeff: 2, baseValuePerKg: 280, description: '은빛 칼날 같은 물고기' }),
+  f({ id: 'pacific_cod', name: '대구', scientificName: 'Gadus macrocephalus', emoji: '🐟', rarity: 'uncommon', habitat: ['saltwater'], baitTypes: ['lure'], season: ['winter'], size: { min: 40, max: 100, mean: 60, stdDev: 14 }, weightCoeff: 8, baseValuePerKg: 250, description: '겨울 대구탕' }),
+  f({ id: 'pollack', name: '명태', scientificName: 'Gadus chalcogrammus', emoji: '🐟', rarity: 'uncommon', habitat: ['saltwater'], baitTypes: ['lure'], season: ['winter'], size: { min: 30, max: 70, mean: 45, stdDev: 10 }, weightCoeff: 6, baseValuePerKg: 230, description: '동태, 황태, 코다리... 변신의 왕' }),
+  f({ id: 'red_seabream', name: '참돔', scientificName: 'Pagrus major', emoji: '🐠', rarity: 'uncommon', habitat: ['saltwater'], baitTypes: ['shrimp', 'lure'], size: { min: 30, max: 80, mean: 45, stdDev: 11 }, weightCoeff: 13, baseValuePerKg: 320, description: '돔 중의 왕' }),
+  f({ id: 'black_seabream', name: '감성돔', scientificName: 'Acanthopagrus schlegelii', emoji: '🐠', rarity: 'uncommon', habitat: ['saltwater'], baitTypes: ['shrimp'], size: { min: 25, max: 60, mean: 38, stdDev: 8 }, weightCoeff: 12, baseValuePerKg: 290, description: '감성적인 돔' }),
+  f({ id: 'yellow_corvina', name: '참조기', scientificName: 'Larimichthys polyactis', emoji: '🐟', rarity: 'uncommon', habitat: ['saltwater'], baitTypes: ['shrimp'], size: { min: 20, max: 40, mean: 28, stdDev: 5 }, weightCoeff: 8, baseValuePerKg: 280, description: '굴비의 원료' }),
+  f({ id: 'large_yellow_croaker', name: '부세', emoji: '🐟', rarity: 'uncommon', habitat: ['saltwater'], baitTypes: ['shrimp'], size: { min: 30, max: 60, mean: 42, stdDev: 8 }, weightCoeff: 9, baseValuePerKg: 240, description: '조기과의 큰 물고기' }),
+  f({ id: 'small_yellow_croaker', name: '백조기', emoji: '🐟', rarity: 'uncommon', habitat: ['saltwater'], baitTypes: ['shrimp'], size: { min: 20, max: 40, mean: 28, stdDev: 5 }, weightCoeff: 7, baseValuePerKg: 220, description: '하얀 조기' }),
+  f({ id: 'puffer', name: '복어', scientificName: 'Takifugu sp.', emoji: '🐡', rarity: 'uncommon', habitat: ['saltwater'], baitTypes: ['shrimp'], size: { min: 20, max: 50, mean: 30, stdDev: 7 }, weightCoeff: 12, baseValuePerKg: 260, description: '독이 있지만 별미' }),
+  f({ id: 'sailfin_sandfish', name: '도루묵', emoji: '🐟', rarity: 'uncommon', habitat: ['saltwater'], baitTypes: ['shrimp'], season: ['winter'], size: { min: 15, max: 30, mean: 22, stdDev: 4 }, weightCoeff: 5, baseValuePerKg: 200, description: '겨울 도루묵찌개' }),
+  f({ id: 'spear_squid', name: '오징어', scientificName: 'Todarodes pacificus', emoji: '🦑', rarity: 'uncommon', habitat: ['saltwater'], baitTypes: ['lure'], timeOfDay: ['night'], size: { min: 20, max: 45, mean: 30, stdDev: 6 }, weightCoeff: 6, baseValuePerKg: 200, description: '밤바다의 별미' }),
+  f({ id: 'long_arm_octopus', name: '낙지', scientificName: 'Octopus minor', emoji: '🐙', rarity: 'uncommon', habitat: ['saltwater'], baitTypes: ['lure'], size: { min: 30, max: 70, mean: 45, stdDev: 10 }, weightCoeff: 5, baseValuePerKg: 250, description: '뻘낙지! 산낙지!' }),
+  f({ id: 'webfoot_octopus', name: '주꾸미(중)', emoji: '🐙', rarity: 'uncommon', habitat: ['saltwater'], baitTypes: ['lure'], season: ['spring'], size: { min: 18, max: 35, mean: 25, stdDev: 5 }, weightCoeff: 5, baseValuePerKg: 200, description: '봄 주꾸미 샤브샤브' }),
+  f({ id: 'monkfish', name: '아귀', scientificName: 'Lophius litulon', emoji: '🐟', rarity: 'uncommon', habitat: ['saltwater'], baitTypes: ['lure'], size: { min: 40, max: 90, mean: 60, stdDev: 13 }, weightCoeff: 16, baseValuePerKg: 220, description: '못생겼지만 맛있는 아귀찜' }),
+  f({ id: 'common_skate', name: '홍어', scientificName: 'Beringraja pulchra', emoji: '🐟', rarity: 'uncommon', habitat: ['saltwater'], baitTypes: ['shrimp'], size: { min: 50, max: 120, mean: 75, stdDev: 18 }, weightCoeff: 9, baseValuePerKg: 320, description: '삭힌 홍어회의 추억' }),
+  f({ id: 'flying_fish', name: '날치', scientificName: 'Cypselurus agoo', emoji: '🐠', rarity: 'uncommon', habitat: ['saltwater'], baitTypes: ['lure'], size: { min: 20, max: 40, mean: 28, stdDev: 5 }, weightCoeff: 4, baseValuePerKg: 240, description: '바다 위로 날아오르는 물고기' }),
+  f({ id: 'ribbon_fish', name: '갈치류', emoji: '🐟', rarity: 'uncommon', habitat: ['saltwater'], baitTypes: ['lure'], timeOfDay: ['night'], size: { min: 60, max: 120, mean: 85, stdDev: 16 }, weightCoeff: 2, baseValuePerKg: 270, description: '비슷하지만 다른 갈치과 어종' }),
+  f({ id: 'spotted_seabass', name: '점농어', emoji: '🐟', rarity: 'uncommon', habitat: ['saltwater'], baitTypes: ['lure'], size: { min: 30, max: 70, mean: 45, stdDev: 9 }, weightCoeff: 9, baseValuePerKg: 230, description: '점박이 농어' }),
+  f({ id: 'amberjack', name: '잿방어', emoji: '🐟', rarity: 'uncommon', habitat: ['saltwater'], baitTypes: ['lure'], size: { min: 50, max: 100, mean: 70, stdDev: 13 }, weightCoeff: 12, baseValuePerKg: 290, description: '회로 인기 좋은 방어과' }),
+  f({ id: 'lobster_small', name: '랍스터(소)', emoji: '🦞', rarity: 'uncommon', habitat: ['saltwater'], baitTypes: ['shrimp'], size: { min: 15, max: 30, mean: 22, stdDev: 4 }, weightCoeff: 12, baseValuePerKg: 350, description: '작은 랍스터' }),
+  f({ id: 'crab_blue', name: '꽃게', scientificName: 'Portunus trituberculatus', emoji: '🦀', rarity: 'uncommon', habitat: ['saltwater'], baitTypes: ['shrimp'], size: { min: 15, max: 25, mean: 19, stdDev: 3 }, weightCoeff: 14, baseValuePerKg: 320, description: '꽃게탕!' }),
+  f({ id: 'snow_crab', name: '대게(소)', emoji: '🦀', rarity: 'uncommon', habitat: ['saltwater'], baitTypes: ['shrimp'], size: { min: 12, max: 22, mean: 17, stdDev: 3 }, weightCoeff: 13, baseValuePerKg: 380, description: '영덕대게의 동생' }),
+  f({ id: 'shrimp_jumbo', name: '대하', emoji: '🦐', rarity: 'uncommon', habitat: ['saltwater'], baitTypes: ['shrimp'], season: ['autumn'], size: { min: 12, max: 22, mean: 17, stdDev: 3 }, weightCoeff: 4, baseValuePerKg: 280, description: '대하소금구이' }),
+  f({ id: 'sea_squirt', name: '멍게', emoji: '🫠', rarity: 'uncommon', habitat: ['saltwater'], baitTypes: ['any'], size: { min: 8, max: 18, mean: 12, stdDev: 3 }, weightCoeff: 8, baseValuePerKg: 180, description: '바다의 파인애플' }),
+  f({ id: 'abalone_small', name: '전복', scientificName: 'Haliotis discus hannai', emoji: '🐚', rarity: 'uncommon', habitat: ['saltwater'], baitTypes: ['any'], size: { min: 8, max: 15, mean: 11, stdDev: 2 }, weightCoeff: 12, baseValuePerKg: 450, description: '전복죽!' }),
+  f({ id: 'jeju_jelly', name: '제주옥돔', emoji: '🐠', rarity: 'uncommon', habitat: ['saltwater'], baitTypes: ['shrimp'], size: { min: 25, max: 50, mean: 35, stdDev: 6 }, weightCoeff: 8, baseValuePerKg: 320, description: '제주의 별미' }),
+  f({ id: 'sweet_lip', name: '돌돔', scientificName: 'Oplegnathus fasciatus', emoji: '🐠', rarity: 'uncommon', habitat: ['saltwater'], baitTypes: ['shrimp'], size: { min: 25, max: 60, mean: 38, stdDev: 8 }, weightCoeff: 13, baseValuePerKg: 350, description: '바위 사이의 돔' }),
+  f({ id: 'striped_beakperch', name: '벵에돔', emoji: '🐠', rarity: 'uncommon', habitat: ['saltwater'], baitTypes: ['shrimp'], size: { min: 25, max: 50, mean: 35, stdDev: 7 }, weightCoeff: 10, baseValuePerKg: 280, description: '검은 빛깔의 돔' }),
+  f({ id: 'mottled_skate', name: '간자미', emoji: '🐟', rarity: 'uncommon', habitat: ['saltwater'], baitTypes: ['shrimp'], size: { min: 30, max: 70, mean: 45, stdDev: 9 }, weightCoeff: 8, baseValuePerKg: 200, description: '홍어 사촌' }),
+  f({ id: 'hairy_crab', name: '털게', emoji: '🦀', rarity: 'uncommon', habitat: ['saltwater'], baitTypes: ['shrimp'], season: ['winter'], size: { min: 10, max: 20, mean: 14, stdDev: 3 }, weightCoeff: 12, baseValuePerKg: 350, description: '겨울의 별미' }),
+  f({ id: 'mantis_shrimp_big', name: '갯가재(대)', emoji: '🦐', rarity: 'uncommon', habitat: ['saltwater'], baitTypes: ['worm'], size: { min: 15, max: 28, mean: 20, stdDev: 3 }, weightCoeff: 7, baseValuePerKg: 200, description: '큰 갯가재, 격투가' }),
+  f({ id: 'jeju_eel', name: '먹장어', emoji: '🐍', rarity: 'uncommon', habitat: ['saltwater'], baitTypes: ['worm'], timeOfDay: ['night'], size: { min: 30, max: 60, mean: 42, stdDev: 8 }, weightCoeff: 3, baseValuePerKg: 280, description: '꼼장어구이!' }),
+  f({ id: 'sea_horse', name: '해마', emoji: '🐠', rarity: 'uncommon', habitat: ['saltwater'], baitTypes: ['shrimp'], size: { min: 8, max: 18, mean: 12, stdDev: 3 }, weightCoeff: 1, baseValuePerKg: 400, description: '바닷속의 신기한 작은 말' }),
+  f({ id: 'sand_lance_big', name: '큰까나리', emoji: '🐟', rarity: 'uncommon', habitat: ['saltwater'], baitTypes: ['shrimp'], size: { min: 15, max: 28, mean: 20, stdDev: 3 }, weightCoeff: 2, baseValuePerKg: 110, description: '큰 까나리' }),
+  f({ id: 'eel_river', name: '실치', emoji: '🐍', rarity: 'uncommon', habitat: ['saltwater'], baitTypes: ['shrimp'], season: ['spring'], size: { min: 5, max: 12, mean: 8, stdDev: 2 }, weightCoeff: 1, baseValuePerKg: 250, description: '봄날의 실치회' }),
+]
+
+// ─── RARE (45) ────────────────────────────────────────────
+const rareFish: FishType[] = [
+  f({ id: 'golden_carp', name: '황금 잉어', emoji: '✨', rarity: 'rare', habitat: ['freshwater'], baitTypes: ['special'], size: { min: 25, max: 70, mean: 45, stdDev: 10 }, weightCoeff: 18, baseValuePerKg: 700, description: '황금빛으로 빛나는 행운의 잉어' }),
+  f({ id: 'big_eel', name: '대형 뱀장어', emoji: '🐍', rarity: 'rare', habitat: ['freshwater', 'saltwater'], baitTypes: ['worm'], timeOfDay: ['night'], size: { min: 80, max: 150, mean: 110, stdDev: 15 }, weightCoeff: 4, baseValuePerKg: 600, description: '거대한 뱀장어!' }),
+  f({ id: 'ayu_big', name: '대형 은어', emoji: '🐟', rarity: 'rare', habitat: ['freshwater'], baitTypes: ['lure'], season: ['summer'], size: { min: 25, max: 40, mean: 32, stdDev: 4 }, weightCoeff: 6, baseValuePerKg: 800, description: '대형 은어 — 향이 짙다' }),
+  f({ id: 'blue_marlin_juv', name: '청새치 새끼', emoji: '🐠', rarity: 'rare', habitat: ['saltwater', 'deep_sea'], baitTypes: ['lure'], size: { min: 80, max: 200, mean: 130, stdDev: 25 }, weightCoeff: 6, baseValuePerKg: 600, description: '청새치의 어린 시절' }),
+  f({ id: 'tuna_yellow', name: '황다랑어', scientificName: 'Thunnus albacares', emoji: '🐟', rarity: 'rare', habitat: ['saltwater'], baitTypes: ['lure'], size: { min: 80, max: 200, mean: 120, stdDev: 25 }, weightCoeff: 12, baseValuePerKg: 700, description: '참치 회의 별미' }),
+  f({ id: 'tuna_skipjack', name: '가다랑어', scientificName: 'Katsuwonus pelamis', emoji: '🐟', rarity: 'rare', habitat: ['saltwater'], baitTypes: ['lure'], size: { min: 50, max: 100, mean: 70, stdDev: 12 }, weightCoeff: 10, baseValuePerKg: 600, description: '가쓰오부시의 원료' }),
+  f({ id: 'great_seabass', name: '대형 농어', emoji: '🐟', rarity: 'rare', habitat: ['saltwater'], baitTypes: ['lure'], size: { min: 80, max: 130, mean: 100, stdDev: 12 }, weightCoeff: 11, baseValuePerKg: 580, description: '거대한 농어!' }),
+  f({ id: 'great_olive_flounder', name: '대광어', emoji: '🐟', rarity: 'rare', habitat: ['saltwater'], baitTypes: ['shrimp'], size: { min: 70, max: 110, mean: 88, stdDev: 12 }, weightCoeff: 13, baseValuePerKg: 600, description: '대형 광어, 회 한 접시 가득' }),
+  f({ id: 'big_red_seabream', name: '대형 참돔', emoji: '🐠', rarity: 'rare', habitat: ['saltwater'], baitTypes: ['shrimp', 'lure'], size: { min: 70, max: 100, mean: 85, stdDev: 10 }, weightCoeff: 14, baseValuePerKg: 700, description: '왕참돔!' }),
+  f({ id: 'rock_octopus', name: '돌문어', emoji: '🐙', rarity: 'rare', habitat: ['saltwater'], baitTypes: ['lure'], size: { min: 50, max: 100, mean: 70, stdDev: 12 }, weightCoeff: 8, baseValuePerKg: 500, description: '바위 틈의 문어' }),
+  f({ id: 'tiger_puffer', name: '자주복', scientificName: 'Takifugu rubripes', emoji: '🐡', rarity: 'rare', habitat: ['saltwater'], baitTypes: ['shrimp'], size: { min: 30, max: 70, mean: 45, stdDev: 9 }, weightCoeff: 14, baseValuePerKg: 700, description: '복어의 왕, 비싸다' }),
+  f({ id: 'snow_crab_big', name: '대게', emoji: '🦀', rarity: 'rare', habitat: ['saltwater'], baitTypes: ['shrimp'], size: { min: 18, max: 28, mean: 22, stdDev: 3 }, weightCoeff: 16, baseValuePerKg: 750, description: '영덕 대게! 다리가 굵다' }),
+  f({ id: 'king_crab_small', name: '왕게', emoji: '🦀', rarity: 'rare', habitat: ['saltwater', 'arctic'], baitTypes: ['shrimp'], size: { min: 18, max: 30, mean: 23, stdDev: 4 }, weightCoeff: 17, baseValuePerKg: 800, description: '왕게의 다리...' }),
+  f({ id: 'lobster', name: '랍스터', emoji: '🦞', rarity: 'rare', habitat: ['saltwater'], baitTypes: ['shrimp'], size: { min: 25, max: 45, mean: 33, stdDev: 5 }, weightCoeff: 14, baseValuePerKg: 750, description: '바다의 진미' }),
+  f({ id: 'sword_fish', name: '황새치', scientificName: 'Xiphias gladius', emoji: '🐟', rarity: 'rare', habitat: ['saltwater', 'deep_sea'], baitTypes: ['lure'], size: { min: 100, max: 250, mean: 160, stdDev: 30 }, weightCoeff: 8, baseValuePerKg: 700, description: '검 같은 주둥이의 물고기' }),
+  f({ id: 'mahi_mahi', name: '만새기', scientificName: 'Coryphaena hippurus', emoji: '🐟', rarity: 'rare', habitat: ['saltwater', 'tropical'], baitTypes: ['lure'], size: { min: 60, max: 130, mean: 90, stdDev: 16 }, weightCoeff: 8, baseValuePerKg: 580, description: '컬러풀한 열대 물고기' }),
+  f({ id: 'wahoo', name: '꼬치고기', emoji: '🐟', rarity: 'rare', habitat: ['saltwater', 'tropical'], baitTypes: ['lure'], size: { min: 60, max: 130, mean: 90, stdDev: 16 }, weightCoeff: 6, baseValuePerKg: 520, description: '빠른 열대 물고기' }),
+  f({ id: 'dorado', name: '도라도', emoji: '🐠', rarity: 'rare', habitat: ['saltwater', 'tropical'], baitTypes: ['lure'], size: { min: 50, max: 110, mean: 75, stdDev: 14 }, weightCoeff: 8, baseValuePerKg: 540, description: '황금빛 열대 물고기' }),
+  f({ id: 'goldspot_seabream', name: '옥돔', scientificName: 'Branchiostegus japonicus', emoji: '🐠', rarity: 'rare', habitat: ['saltwater'], baitTypes: ['shrimp'], size: { min: 30, max: 50, mean: 40, stdDev: 5 }, weightCoeff: 9, baseValuePerKg: 600, description: '제주 옥돔구이' }),
+  f({ id: 'dolly_varden', name: '곤들매기', emoji: '🐟', rarity: 'rare', habitat: ['freshwater'], baitTypes: ['lure'], size: { min: 30, max: 60, mean: 42, stdDev: 8 }, weightCoeff: 10, baseValuePerKg: 480, description: '청정 산천의 송어과' }),
+  f({ id: 'arapaima_juv', name: '아라파이마(소)', emoji: '🐟', rarity: 'rare', habitat: ['freshwater', 'tropical'], baitTypes: ['lure'], size: { min: 50, max: 100, mean: 70, stdDev: 13 }, weightCoeff: 18, baseValuePerKg: 600, description: '아마존 거대 어류' }),
+  f({ id: 'sturgeon_small', name: '철갑상어(소)', emoji: '🐟', rarity: 'rare', habitat: ['freshwater'], baitTypes: ['worm'], size: { min: 50, max: 120, mean: 80, stdDev: 16 }, weightCoeff: 12, baseValuePerKg: 700, description: '캐비어로 유명한 철갑상어' }),
+  f({ id: 'red_snapper', name: '도미', emoji: '🐠', rarity: 'rare', habitat: ['saltwater', 'tropical'], baitTypes: ['shrimp'], size: { min: 30, max: 70, mean: 45, stdDev: 9 }, weightCoeff: 12, baseValuePerKg: 600, description: '붉은 빛깔의 도미' }),
+  f({ id: 'spotted_grouper', name: '능성어', emoji: '🐠', rarity: 'rare', habitat: ['saltwater'], baitTypes: ['lure'], size: { min: 40, max: 90, mean: 60, stdDev: 12 }, weightCoeff: 13, baseValuePerKg: 620, description: '큰 입의 포식자' }),
+  f({ id: 'longtooth_grouper', name: '구문쟁이', emoji: '🐠', rarity: 'rare', habitat: ['saltwater'], baitTypes: ['lure'], size: { min: 40, max: 90, mean: 60, stdDev: 12 }, weightCoeff: 14, baseValuePerKg: 650, description: '제주 구문쟁이회' }),
+  f({ id: 'koi_pearl', name: '비단잉어', emoji: '🎏', rarity: 'rare', habitat: ['freshwater'], baitTypes: ['pellet'], size: { min: 30, max: 80, mean: 50, stdDev: 12 }, weightCoeff: 16, baseValuePerKg: 750, description: '관상용 잉어, 색이 화려하다' }),
+  f({ id: 'crab_red_king', name: '레드킹크랩', emoji: '🦀', rarity: 'rare', habitat: ['saltwater', 'arctic'], baitTypes: ['shrimp'], size: { min: 25, max: 40, mean: 32, stdDev: 4 }, weightCoeff: 18, baseValuePerKg: 800, description: '러시아산 레드킹크랩' }),
+  f({ id: 'big_lobster', name: '대형 랍스터', emoji: '🦞', rarity: 'rare', habitat: ['saltwater'], baitTypes: ['shrimp'], size: { min: 40, max: 70, mean: 52, stdDev: 8 }, weightCoeff: 16, baseValuePerKg: 800, description: '거대한 랍스터, 한 마리 가득!' }),
+  f({ id: 'hammerhead_juv', name: '귀상어(소)', emoji: '🦈', rarity: 'rare', habitat: ['saltwater'], baitTypes: ['lure'], size: { min: 80, max: 180, mean: 120, stdDev: 22 }, weightCoeff: 7, baseValuePerKg: 580, description: '망치 모양 머리의 상어' }),
+  f({ id: 'whitetip_shark', name: '흰지느러미상어', emoji: '🦈', rarity: 'rare', habitat: ['saltwater', 'tropical'], baitTypes: ['lure'], size: { min: 80, max: 200, mean: 130, stdDev: 25 }, weightCoeff: 7, baseValuePerKg: 540, description: '하얀 지느러미 끝의 상어' }),
+  f({ id: 'sea_bream_japan', name: '일본도미', emoji: '🐠', rarity: 'rare', habitat: ['saltwater'], baitTypes: ['shrimp'], size: { min: 30, max: 70, mean: 45, stdDev: 9 }, weightCoeff: 12, baseValuePerKg: 590, description: '일본의 명물 도미' }),
+  f({ id: 'octopus_giant', name: '대왕문어', emoji: '🐙', rarity: 'rare', habitat: ['saltwater'], baitTypes: ['lure'], size: { min: 80, max: 150, mean: 110, stdDev: 18 }, weightCoeff: 9, baseValuePerKg: 580, description: '대왕문어다리...!' }),
+  f({ id: 'cobia', name: '코비아', emoji: '🐟', rarity: 'rare', habitat: ['saltwater', 'tropical'], baitTypes: ['lure'], size: { min: 60, max: 130, mean: 90, stdDev: 16 }, weightCoeff: 9, baseValuePerKg: 540, description: '회유하는 큰 물고기' }),
+  f({ id: 'marlin_striped', name: '청새치', scientificName: 'Kajikia audax', emoji: '🐟', rarity: 'rare', habitat: ['saltwater', 'deep_sea'], baitTypes: ['lure'], size: { min: 150, max: 280, mean: 200, stdDev: 30 }, weightCoeff: 7, baseValuePerKg: 700, description: '거대 회유 어종' }),
+  f({ id: 'mackerel_pike', name: '꽁치(대)', emoji: '🐟', rarity: 'rare', habitat: ['saltwater'], baitTypes: ['lure'], size: { min: 35, max: 50, mean: 42, stdDev: 4 }, weightCoeff: 4, baseValuePerKg: 400, description: '대형 꽁치' }),
+  f({ id: 'fancy_carp', name: '비단잉어(특)', emoji: '🎏', rarity: 'rare', habitat: ['freshwater'], baitTypes: ['pellet'], size: { min: 50, max: 100, mean: 70, stdDev: 12 }, weightCoeff: 17, baseValuePerKg: 850, description: '특상품 비단잉어, 일본 수출용' }),
+  f({ id: 'electric_eel_small', name: '전기뱀장어(소)', emoji: '⚡', rarity: 'rare', habitat: ['freshwater', 'tropical'], baitTypes: ['worm'], timeOfDay: ['night'], size: { min: 40, max: 80, mean: 55, stdDev: 10 }, weightCoeff: 4, baseValuePerKg: 700, description: '약한 전기를 흘리는 작은 전기뱀장어' }),
+  f({ id: 'spotted_lobster', name: '점박이랍스터', emoji: '🦞', rarity: 'rare', habitat: ['saltwater', 'tropical'], baitTypes: ['shrimp'], size: { min: 25, max: 45, mean: 33, stdDev: 5 }, weightCoeff: 13, baseValuePerKg: 700, description: '열대 점박이 랍스터' }),
+  f({ id: 'sea_bass_giant', name: '큰입농어', emoji: '🐟', rarity: 'rare', habitat: ['saltwater'], baitTypes: ['lure'], size: { min: 60, max: 110, mean: 85, stdDev: 12 }, weightCoeff: 12, baseValuePerKg: 600, description: '큰 입의 농어' }),
+  f({ id: 'eel_giant', name: '왕장어', emoji: '🐍', rarity: 'rare', habitat: ['freshwater', 'saltwater'], baitTypes: ['worm'], timeOfDay: ['night'], size: { min: 100, max: 200, mean: 140, stdDev: 22 }, weightCoeff: 5, baseValuePerKg: 700, description: '거대한 장어' }),
+  f({ id: 'fugu_supreme', name: '검복', emoji: '🐡', rarity: 'rare', habitat: ['saltwater'], baitTypes: ['shrimp'], size: { min: 25, max: 55, mean: 38, stdDev: 7 }, weightCoeff: 13, baseValuePerKg: 720, description: '복어의 명품' }),
+  f({ id: 'snake_mackerel', name: '갈치아재비', emoji: '🐟', rarity: 'rare', habitat: ['deep_sea'], baitTypes: ['lure'], timeOfDay: ['night'], size: { min: 60, max: 130, mean: 90, stdDev: 16 }, weightCoeff: 5, baseValuePerKg: 580, description: '심해의 가는 물고기' }),
+  f({ id: 'spiny_lobster', name: '닭새우', emoji: '🦞', rarity: 'rare', habitat: ['saltwater', 'tropical'], baitTypes: ['shrimp'], size: { min: 25, max: 45, mean: 33, stdDev: 5 }, weightCoeff: 13, baseValuePerKg: 720, description: '집게가 없는 가시 랍스터' }),
+  f({ id: 'silver_arowana', name: '은빛아로와나', emoji: '🐠', rarity: 'rare', habitat: ['freshwater', 'tropical'], baitTypes: ['lure'], size: { min: 60, max: 100, mean: 78, stdDev: 12 }, weightCoeff: 7, baseValuePerKg: 700, description: '관상용 고급 어종' }),
+  f({ id: 'large_red_snapper', name: '대형 도미', emoji: '🐠', rarity: 'rare', habitat: ['saltwater'], baitTypes: ['shrimp'], size: { min: 60, max: 90, mean: 75, stdDev: 9 }, weightCoeff: 13, baseValuePerKg: 650, description: '대형 도미, 잔치상의 주인공' }),
+]
+
+// ─── EPIC (35) ────────────────────────────────────────────
+const epicFish: FishType[] = [
+  f({ id: 'bluefin_tuna_juv', name: '참다랑어', scientificName: 'Thunnus orientalis', emoji: '🐟', rarity: 'epic', habitat: ['saltwater', 'deep_sea'], baitTypes: ['lure'], size: { min: 100, max: 250, mean: 160, stdDev: 30 }, weightCoeff: 14, baseValuePerKg: 2000, description: '참다랑어 — 회의 황제' }),
+  f({ id: 'giant_squid', name: '대왕오징어', emoji: '🦑', rarity: 'epic', habitat: ['deep_sea'], baitTypes: ['lure'], timeOfDay: ['night'], size: { min: 100, max: 250, mean: 160, stdDev: 30 }, weightCoeff: 9, baseValuePerKg: 1700, description: '심해의 거인' }),
+  f({ id: 'arapaima', name: '아라파이마', scientificName: 'Arapaima gigas', emoji: '🐟', rarity: 'epic', habitat: ['freshwater', 'tropical'], baitTypes: ['lure'], size: { min: 150, max: 300, mean: 220, stdDev: 30 }, weightCoeff: 20, baseValuePerKg: 1800, description: '아마존의 살아있는 화석' }),
+  f({ id: 'sturgeon', name: '철갑상어', scientificName: 'Acipenser sinensis', emoji: '🐟', rarity: 'epic', habitat: ['freshwater'], baitTypes: ['worm'], size: { min: 100, max: 200, mean: 150, stdDev: 22 }, weightCoeff: 14, baseValuePerKg: 2200, description: '캐비어로 유명한 거대 어류' }),
+  f({ id: 'goliath_grouper', name: '대왕그루퍼', emoji: '🐠', rarity: 'epic', habitat: ['saltwater', 'tropical'], baitTypes: ['lure'], size: { min: 120, max: 250, mean: 180, stdDev: 28 }, weightCoeff: 18, baseValuePerKg: 1900, description: '거대한 열대 그루퍼' }),
+  f({ id: 'tarpon', name: '타폰', emoji: '🐟', rarity: 'epic', habitat: ['saltwater', 'tropical'], baitTypes: ['lure'], size: { min: 100, max: 200, mean: 150, stdDev: 22 }, weightCoeff: 9, baseValuePerKg: 1700, description: '점프력 좋은 거대 물고기' }),
+  f({ id: 'bull_shark', name: '황소상어', emoji: '🦈', rarity: 'epic', habitat: ['saltwater'], baitTypes: ['lure'], size: { min: 200, max: 350, mean: 270, stdDev: 32 }, weightCoeff: 12, baseValuePerKg: 1800, description: '강하구를 노니는 위험한 상어' }),
+  f({ id: 'ocean_sunfish_baby', name: '개복치(소)', scientificName: 'Mola mola', emoji: '🐡', rarity: 'epic', habitat: ['saltwater'], baitTypes: ['lure'], size: { min: 100, max: 200, mean: 150, stdDev: 22 }, weightCoeff: 25, baseValuePerKg: 1600, description: '개복치의 어린 시절, 그래도 크다' }),
+  f({ id: 'whale_shark_baby', name: '고래상어(유)', emoji: '🦈', rarity: 'epic', habitat: ['saltwater', 'tropical'], baitTypes: ['lure'], size: { min: 200, max: 400, mean: 290, stdDev: 35 }, weightCoeff: 11, baseValuePerKg: 1800, description: '고래상어의 어린 시절' }),
+  f({ id: 'manta_ray', name: '만타가오리', emoji: '🐟', rarity: 'epic', habitat: ['saltwater', 'tropical'], baitTypes: ['lure'], size: { min: 200, max: 400, mean: 300, stdDev: 35 }, weightCoeff: 8, baseValuePerKg: 1700, description: '날개 같은 큰 가오리' }),
+  f({ id: 'electric_eel', name: '전기뱀장어', scientificName: 'Electrophorus electricus', emoji: '⚡', rarity: 'epic', habitat: ['freshwater', 'tropical'], baitTypes: ['worm'], timeOfDay: ['night'], size: { min: 100, max: 200, mean: 150, stdDev: 22 }, weightCoeff: 5, baseValuePerKg: 1800, description: '600V를 흘리는 위험한 어류' }),
+  f({ id: 'wels_catfish', name: '대형 메기', emoji: '🐟', rarity: 'epic', habitat: ['freshwater'], baitTypes: ['worm'], timeOfDay: ['night'], size: { min: 150, max: 300, mean: 220, stdDev: 30 }, weightCoeff: 17, baseValuePerKg: 1500, description: '유럽 거대 메기' }),
+  f({ id: 'paddlefish', name: '주걱철갑상어', emoji: '🐟', rarity: 'epic', habitat: ['freshwater'], baitTypes: ['worm'], size: { min: 100, max: 220, mean: 160, stdDev: 28 }, weightCoeff: 12, baseValuePerKg: 1700, description: '주걱같은 주둥이의 거대 어류' }),
+  f({ id: 'alligator_gar', name: '엘리게이터가아', emoji: '🐊', rarity: 'epic', habitat: ['freshwater', 'tropical'], baitTypes: ['lure'], size: { min: 150, max: 300, mean: 220, stdDev: 30 }, weightCoeff: 9, baseValuePerKg: 1700, description: '악어 같은 주둥이의 거대 어류' }),
+  f({ id: 'mekong_giant_catfish', name: '메콩대왕메기', emoji: '🐟', rarity: 'epic', habitat: ['freshwater', 'tropical'], baitTypes: ['lure'], size: { min: 150, max: 300, mean: 220, stdDev: 30 }, weightCoeff: 18, baseValuePerKg: 1800, description: '메콩강의 거대 메기' }),
+  f({ id: 'piranha_giant', name: '대왕피라냐', emoji: '🐠', rarity: 'epic', habitat: ['freshwater', 'tropical'], baitTypes: ['lure'], size: { min: 50, max: 100, mean: 70, stdDev: 13 }, weightCoeff: 12, baseValuePerKg: 1500, description: '거대 피라냐, 위험!' }),
+  f({ id: 'anglerfish', name: '심해아귀', emoji: '🐟', rarity: 'epic', habitat: ['deep_sea'], baitTypes: ['lure'], timeOfDay: ['night'], size: { min: 60, max: 120, mean: 88, stdDev: 14 }, weightCoeff: 14, baseValuePerKg: 1800, description: '머리에 빛나는 미끼를 단 심해 어류' }),
+  f({ id: 'oarfish', name: '산갈치', scientificName: 'Regalecus glesne', emoji: '🐍', rarity: 'epic', habitat: ['deep_sea'], baitTypes: ['lure'], size: { min: 200, max: 500, mean: 320, stdDev: 50 }, weightCoeff: 3, baseValuePerKg: 1900, description: '심해의 거대 띠 모양 어류' }),
+  f({ id: 'frilled_shark', name: '주름상어', emoji: '🦈', rarity: 'epic', habitat: ['deep_sea'], baitTypes: ['lure'], size: { min: 100, max: 200, mean: 150, stdDev: 22 }, weightCoeff: 6, baseValuePerKg: 1700, description: '살아있는 화석 상어' }),
+  f({ id: 'goblin_shark', name: '도깨비상어', emoji: '🦈', rarity: 'epic', habitat: ['deep_sea'], baitTypes: ['lure'], size: { min: 200, max: 400, mean: 280, stdDev: 35 }, weightCoeff: 7, baseValuePerKg: 1800, description: '돌출되는 턱이 무서운 심해 상어' }),
+  f({ id: 'megamouth_shark_juv', name: '메가마우스상어', emoji: '🦈', rarity: 'epic', habitat: ['deep_sea'], baitTypes: ['lure'], size: { min: 200, max: 400, mean: 280, stdDev: 35 }, weightCoeff: 10, baseValuePerKg: 1900, description: '거대한 입의 심해 상어' }),
+  f({ id: 'great_barracuda', name: '대형 꼬치고기', emoji: '🐟', rarity: 'epic', habitat: ['saltwater', 'tropical'], baitTypes: ['lure'], size: { min: 100, max: 200, mean: 150, stdDev: 22 }, weightCoeff: 6, baseValuePerKg: 1500, description: '거대한 꼬치고기, 빠르고 위험' }),
+  f({ id: 'royal_grouper', name: '대왕능성어', emoji: '🐠', rarity: 'epic', habitat: ['saltwater'], baitTypes: ['lure'], size: { min: 100, max: 200, mean: 150, stdDev: 22 }, weightCoeff: 18, baseValuePerKg: 1900, description: '왕자급 능성어' }),
+  f({ id: 'big_marlin', name: '대형 청새치', emoji: '🐟', rarity: 'epic', habitat: ['saltwater', 'deep_sea'], baitTypes: ['lure'], size: { min: 250, max: 400, mean: 320, stdDev: 30 }, weightCoeff: 9, baseValuePerKg: 1900, description: '대형 청새치, 트로피 피쉬' }),
+  f({ id: 'sail_fish', name: '돛새치', scientificName: 'Istiophorus platypterus', emoji: '⛵', rarity: 'epic', habitat: ['saltwater', 'deep_sea'], baitTypes: ['lure'], size: { min: 200, max: 350, mean: 270, stdDev: 30 }, weightCoeff: 6, baseValuePerKg: 1800, description: '돛 같은 등지느러미의 빠른 물고기' }),
+  f({ id: 'silver_marlin', name: '은청새치', emoji: '🐟', rarity: 'epic', habitat: ['saltwater', 'deep_sea'], baitTypes: ['lure'], size: { min: 200, max: 350, mean: 270, stdDev: 30 }, weightCoeff: 7, baseValuePerKg: 1800, description: '은빛 청새치' }),
+  f({ id: 'white_sturgeon', name: '백철갑상어', emoji: '🐟', rarity: 'epic', habitat: ['freshwater'], baitTypes: ['worm'], size: { min: 200, max: 400, mean: 280, stdDev: 35 }, weightCoeff: 14, baseValuePerKg: 2100, description: '백색 거대 철갑상어, 캐비어 최고급' }),
+  f({ id: 'blue_lobster', name: '파란 랍스터', emoji: '🦞', rarity: 'epic', habitat: ['saltwater'], baitTypes: ['shrimp'], size: { min: 30, max: 60, mean: 45, stdDev: 7 }, weightCoeff: 14, baseValuePerKg: 2000, description: '200만마리 중 1마리, 파란 랍스터' }),
+  f({ id: 'colossal_squid_juv', name: '남극대왕오징어(유)', emoji: '🦑', rarity: 'epic', habitat: ['deep_sea', 'arctic'], baitTypes: ['lure'], size: { min: 150, max: 300, mean: 220, stdDev: 30 }, weightCoeff: 11, baseValuePerKg: 1900, description: '남극의 거대 오징어' }),
+  f({ id: 'humboldt_squid', name: '훔볼트오징어', emoji: '🦑', rarity: 'epic', habitat: ['deep_sea'], baitTypes: ['lure'], timeOfDay: ['night'], size: { min: 100, max: 200, mean: 150, stdDev: 22 }, weightCoeff: 9, baseValuePerKg: 1700, description: '식인 오징어로 유명한 종' }),
+  f({ id: 'wolf_eel', name: '늑대장어', emoji: '🐍', rarity: 'epic', habitat: ['deep_sea'], baitTypes: ['lure'], size: { min: 100, max: 200, mean: 150, stdDev: 22 }, weightCoeff: 6, baseValuePerKg: 1600, description: '늑대 같은 이빨의 장어' }),
+  f({ id: 'gulper_eel', name: '풍선장어', emoji: '🐍', rarity: 'epic', habitat: ['deep_sea'], baitTypes: ['lure'], size: { min: 80, max: 180, mean: 120, stdDev: 22 }, weightCoeff: 4, baseValuePerKg: 1700, description: '입을 풍선처럼 부풀리는 심해어' }),
+  f({ id: 'big_octopus', name: '거대 문어', emoji: '🐙', rarity: 'epic', habitat: ['saltwater'], baitTypes: ['lure'], size: { min: 150, max: 300, mean: 220, stdDev: 30 }, weightCoeff: 10, baseValuePerKg: 1700, description: '거대한 문어' }),
+  f({ id: 'blue_marlin', name: '청새치(대)', emoji: '🐟', rarity: 'epic', habitat: ['saltwater', 'deep_sea'], baitTypes: ['lure'], size: { min: 250, max: 450, mean: 350, stdDev: 35 }, weightCoeff: 8, baseValuePerKg: 2000, description: '대형 청새치, 5m급!' }),
+  f({ id: 'beluga_sturgeon', name: '벨루가철갑상어', emoji: '🐟', rarity: 'epic', habitat: ['freshwater'], baitTypes: ['worm'], size: { min: 200, max: 400, mean: 290, stdDev: 38 }, weightCoeff: 16, baseValuePerKg: 2300, description: '캐비어의 최고봉' }),
+]
+
+// ─── LEGENDARY (25) ───────────────────────────────────────
+const legendaryFish: FishType[] = [
+  f({ id: 'great_white_shark', name: '백상아리', scientificName: 'Carcharodon carcharias', emoji: '🦈', rarity: 'legendary', habitat: ['saltwater', 'deep_sea'], baitTypes: ['lure'], size: { min: 300, max: 600, mean: 420, stdDev: 50 }, weightCoeff: 12, baseValuePerKg: 5500, description: '바다의 최상위 포식자' }),
+  f({ id: 'whale_shark', name: '고래상어', scientificName: 'Rhincodon typus', emoji: '🦈', rarity: 'legendary', habitat: ['saltwater', 'tropical'], baitTypes: ['lure'], size: { min: 500, max: 1200, mean: 800, stdDev: 100 }, weightCoeff: 12, baseValuePerKg: 6000, description: '바다에서 가장 큰 물고기' }),
+  f({ id: 'ocean_sunfish', name: '개복치', scientificName: 'Mola mola', emoji: '🐡', rarity: 'legendary', habitat: ['saltwater'], baitTypes: ['lure'], size: { min: 300, max: 500, mean: 380, stdDev: 35 }, weightCoeff: 28, baseValuePerKg: 5000, description: '둥글고 거대한 신비의 어류' }),
+  f({ id: 'colossal_squid', name: '남극대왕오징어', scientificName: 'Mesonychoteuthis hamiltoni', emoji: '🦑', rarity: 'legendary', habitat: ['deep_sea', 'arctic'], baitTypes: ['lure'], size: { min: 400, max: 700, mean: 540, stdDev: 50 }, weightCoeff: 13, baseValuePerKg: 5500, description: '눈이 농구공만한 심해 오징어' }),
+  f({ id: 'tiger_shark_legend', name: '뱀상어', emoji: '🦈', rarity: 'legendary', habitat: ['saltwater'], baitTypes: ['lure'], size: { min: 300, max: 550, mean: 410, stdDev: 45 }, weightCoeff: 11, baseValuePerKg: 5200, description: '호랑이 줄무늬의 거대 상어' }),
+  f({ id: 'mako_shark', name: '청상아리', emoji: '🦈', rarity: 'legendary', habitat: ['saltwater', 'deep_sea'], baitTypes: ['lure'], size: { min: 250, max: 450, mean: 340, stdDev: 40 }, weightCoeff: 10, baseValuePerKg: 5000, description: '시속 70km의 빠른 상어' }),
+  f({ id: 'giant_grouper', name: '대왕바리', emoji: '🐠', rarity: 'legendary', habitat: ['saltwater', 'tropical'], baitTypes: ['lure'], size: { min: 150, max: 270, mean: 200, stdDev: 28 }, weightCoeff: 22, baseValuePerKg: 5300, description: '인간을 삼킨다는 전설의 그루퍼' }),
+  f({ id: 'goliath_tigerfish', name: '골리앗 호랑이고기', emoji: '🐠', rarity: 'legendary', habitat: ['freshwater', 'tropical'], baitTypes: ['lure'], size: { min: 100, max: 180, mean: 140, stdDev: 18 }, weightCoeff: 11, baseValuePerKg: 5200, description: '아프리카의 거대 포식자' }),
+  f({ id: 'dunkleosteus_juv', name: '둔클레오스테우스(소)', emoji: '🐟', rarity: 'legendary', habitat: ['deep_sea'], baitTypes: ['lure'], size: { min: 200, max: 400, mean: 290, stdDev: 38 }, weightCoeff: 16, baseValuePerKg: 5800, description: '고대 데본기 갑주어의 후예?' }),
+  f({ id: 'coelacanth', name: '실러캔스', scientificName: 'Latimeria chalumnae', emoji: '🐟', rarity: 'legendary', habitat: ['deep_sea'], baitTypes: ['special'], size: { min: 100, max: 200, mean: 150, stdDev: 22 }, weightCoeff: 18, baseValuePerKg: 6500, description: '살아있는 화석' }),
+  f({ id: 'giant_oarfish', name: '대형 산갈치', emoji: '🐍', rarity: 'legendary', habitat: ['deep_sea'], baitTypes: ['special'], size: { min: 500, max: 1100, mean: 750, stdDev: 100 }, weightCoeff: 4, baseValuePerKg: 5800, description: '11m급 거대 산갈치, 인어 전설의 모델' }),
+  f({ id: 'giant_pacific_octopus', name: '북태평양대왕문어', emoji: '🐙', rarity: 'legendary', habitat: ['deep_sea'], baitTypes: ['lure'], size: { min: 300, max: 600, mean: 430, stdDev: 50 }, weightCoeff: 11, baseValuePerKg: 5400, description: '몸길이 6m의 거대 문어' }),
+  f({ id: 'mekong_stingray', name: '메콩 가오리', emoji: '🐟', rarity: 'legendary', habitat: ['freshwater', 'tropical'], baitTypes: ['worm'], size: { min: 200, max: 500, mean: 320, stdDev: 50 }, weightCoeff: 12, baseValuePerKg: 5300, description: '몸길이 5m의 민물 가오리' }),
+  f({ id: 'taimen', name: '타이멘', emoji: '🐟', rarity: 'legendary', habitat: ['freshwater', 'arctic'], baitTypes: ['lure'], size: { min: 100, max: 200, mean: 150, stdDev: 22 }, weightCoeff: 14, baseValuePerKg: 5200, description: '시베리아의 거대 송어과' }),
+  f({ id: 'oarfish_record', name: '산갈치(전설급)', emoji: '🐍', rarity: 'legendary', habitat: ['deep_sea'], baitTypes: ['special'], size: { min: 700, max: 1500, mean: 1000, stdDev: 130 }, weightCoeff: 4, baseValuePerKg: 6000, description: '15m급 산갈치, 지진 전조' }),
+  f({ id: 'megamouth_shark', name: '메가마우스(대)', emoji: '🦈', rarity: 'legendary', habitat: ['deep_sea'], baitTypes: ['lure'], size: { min: 400, max: 600, mean: 500, stdDev: 35 }, weightCoeff: 11, baseValuePerKg: 5500, description: '5m급 거대 입 상어' }),
+  f({ id: 'sperm_whale_calf', name: '향유고래 새끼', emoji: '🐋', rarity: 'legendary', habitat: ['deep_sea'], baitTypes: ['special'], size: { min: 400, max: 700, mean: 540, stdDev: 50 }, weightCoeff: 18, baseValuePerKg: 5800, description: '향유고래의 어린 시절...' }),
+  f({ id: 'narwhal', name: '일각고래', emoji: '🐋', rarity: 'legendary', habitat: ['saltwater', 'arctic'], baitTypes: ['special'], size: { min: 300, max: 500, mean: 400, stdDev: 35 }, weightCoeff: 13, baseValuePerKg: 5500, description: '뿔 달린 북극의 고래' }),
+  f({ id: 'beluga_whale_calf', name: '벨루가 새끼', emoji: '🐋', rarity: 'legendary', habitat: ['saltwater', 'arctic'], baitTypes: ['special'], size: { min: 200, max: 400, mean: 300, stdDev: 35 }, weightCoeff: 14, baseValuePerKg: 5400, description: '북극 흰돌고래의 새끼' }),
+  f({ id: 'orca_calf', name: '범고래 새끼', emoji: '🐋', rarity: 'legendary', habitat: ['saltwater'], baitTypes: ['special'], size: { min: 200, max: 400, mean: 300, stdDev: 35 }, weightCoeff: 17, baseValuePerKg: 5600, description: '바다의 늑대 범고래' }),
+  f({ id: 'old_carp', name: '천년 잉어', emoji: '🐉', rarity: 'legendary', habitat: ['freshwater', 'mythical'], baitTypes: ['special'], size: { min: 100, max: 200, mean: 150, stdDev: 22 }, weightCoeff: 18, baseValuePerKg: 5800, description: '천년을 산 잉어, 용이 되기 직전' }),
+  f({ id: 'koi_emperor', name: '황제 비단잉어', emoji: '🎏', rarity: 'legendary', habitat: ['freshwater'], baitTypes: ['special'], size: { min: 80, max: 130, mean: 100, stdDev: 14 }, weightCoeff: 18, baseValuePerKg: 6200, description: '경매에서 1억원 넘는 비단잉어' }),
+  f({ id: 'rainbow_dragon_fish', name: '무지개 용어', emoji: '🌈', rarity: 'legendary', habitat: ['mythical'], baitTypes: ['special'], size: { min: 100, max: 200, mean: 150, stdDev: 22 }, weightCoeff: 12, baseValuePerKg: 5800, description: '무지개 비늘의 용 닮은 물고기' }),
+  f({ id: 'crystal_lobster', name: '크리스탈 랍스터', emoji: '🦞', rarity: 'legendary', habitat: ['mythical'], baitTypes: ['special'], size: { min: 50, max: 100, mean: 75, stdDev: 11 }, weightCoeff: 16, baseValuePerKg: 5500, description: '투명한 수정 같은 랍스터' }),
+  f({ id: 'kraken_juv', name: '크라켄(유)', emoji: '🦑', rarity: 'legendary', habitat: ['deep_sea', 'mythical'], baitTypes: ['special'], size: { min: 300, max: 600, mean: 450, stdDev: 50 }, weightCoeff: 14, baseValuePerKg: 5800, description: '전설의 크라켄, 아직 어린 시절' }),
+]
+
+// ─── MYTHIC (15) ──────────────────────────────────────────
+const mythicFish: FishType[] = [
+  f({ id: 'imugi', name: '이무기', emoji: '🐉', rarity: 'mythic', habitat: ['mythical', 'freshwater'], baitTypes: ['special'], size: { min: 500, max: 1000, mean: 720, stdDev: 100 }, weightCoeff: 12, baseValuePerKg: 22000, description: '용이 되지 못한 천년 묵은 큰 뱀', loreFlavor: '천년의 한이 비늘마다 맺혀있다' }),
+  f({ id: 'dragon_king', name: '용왕', emoji: '🐲', rarity: 'mythic', habitat: ['mythical', 'deep_sea'], baitTypes: ['special'], size: { min: 800, max: 1500, mean: 1100, stdDev: 130 }, weightCoeff: 15, baseValuePerKg: 30000, description: '바다를 다스리는 용왕 본체!', loreFlavor: '낚싯대를 든 자에게 천운이 깃든다' }),
+  f({ id: 'mermaid', name: '인어', emoji: '🧜‍♀️', rarity: 'mythic', habitat: ['mythical', 'saltwater'], baitTypes: ['special'], size: { min: 150, max: 250, mean: 190, stdDev: 22 }, weightCoeff: 9, baseValuePerKg: 25000, description: '전설의 인어, 영원한 젊음을 준다는 그것' }),
+  f({ id: 'leviathan', name: '리바이어던', emoji: '🐲', rarity: 'mythic', habitat: ['mythical', 'deep_sea'], baitTypes: ['special'], size: { min: 1000, max: 2000, mean: 1400, stdDev: 180 }, weightCoeff: 14, baseValuePerKg: 28000, description: '구약의 거대 해양 괴수', loreFlavor: '바다 그 자체가 분노한 듯하다' }),
+  f({ id: 'jormungandr', name: '요르문간드', emoji: '🐍', rarity: 'mythic', habitat: ['mythical', 'deep_sea'], baitTypes: ['special'], size: { min: 1500, max: 3000, mean: 2200, stdDev: 250 }, weightCoeff: 10, baseValuePerKg: 28000, description: '북유럽 신화의 세계뱀', loreFlavor: '꼬리를 물면 세계가 끝난다' }),
+  f({ id: 'human_face_fish', name: '인면어', emoji: '😱', rarity: 'mythic', habitat: ['mythical', 'freshwater'], baitTypes: ['special'], size: { min: 50, max: 120, mean: 80, stdDev: 15 }, weightCoeff: 14, baseValuePerKg: 23000, description: '사람 얼굴을 닮은 잉어... 눈이 마주치면 안 된다' }),
+  f({ id: 'time_fish', name: '시간의 잉어', emoji: '⌛', rarity: 'mythic', habitat: ['mythical'], baitTypes: ['special'], size: { min: 100, max: 200, mean: 150, stdDev: 22 }, weightCoeff: 12, baseValuePerKg: 26000, description: '시간을 거꾸로 헤엄친다', loreFlavor: '잡는 순간 1초가 영원이 된다' }),
+  f({ id: 'dimension_fish', name: '차원물고기', emoji: '🌀', rarity: 'mythic', habitat: ['mythical'], baitTypes: ['special'], size: { min: 100, max: 200, mean: 150, stdDev: 22 }, weightCoeff: 11, baseValuePerKg: 27000, description: '여러 차원을 동시에 헤엄친다' }),
+  f({ id: 'cosmic_whale', name: '우주고래', emoji: '🐋', rarity: 'mythic', habitat: ['mythical'], baitTypes: ['special'], size: { min: 1500, max: 3000, mean: 2200, stdDev: 250 }, weightCoeff: 16, baseValuePerKg: 30000, description: '은하 사이를 헤엄치는 거대 고래', loreFlavor: '뱃속에 별 하나가 들어있다' }),
+  f({ id: 'phoenix_fish', name: '불사조어', emoji: '🔥', rarity: 'mythic', habitat: ['mythical'], baitTypes: ['special'], size: { min: 100, max: 200, mean: 150, stdDev: 22 }, weightCoeff: 11, baseValuePerKg: 25000, description: '불에서 다시 태어나는 물고기' }),
+  f({ id: 'starfish_god', name: '별의 불가사리', emoji: '⭐', rarity: 'mythic', habitat: ['mythical'], baitTypes: ['special'], size: { min: 80, max: 150, mean: 110, stdDev: 18 }, weightCoeff: 14, baseValuePerKg: 24000, description: '하늘의 별이 떨어져 불가사리가 된 것' }),
+  f({ id: 'origin_water_drop', name: '태초의 물방울', emoji: '💧', rarity: 'mythic', habitat: ['mythical'], baitTypes: ['special'], size: { min: 30, max: 80, mean: 50, stdDev: 12 }, weightCoeff: 25, baseValuePerKg: 35000, description: '태초의 바다에서 떨어진 한 방울', loreFlavor: '이걸 마시면 모든 것을 안다' }),
+  f({ id: 'eye_of_abyss', name: '심연의 눈', emoji: '👁️', rarity: 'mythic', habitat: ['mythical', 'deep_sea'], baitTypes: ['special'], size: { min: 100, max: 250, mean: 170, stdDev: 30 }, weightCoeff: 15, baseValuePerKg: 28000, description: '심연이 당신을 들여다본다' }),
+  f({ id: 'world_fish', name: '세계물고기', emoji: '🌍', rarity: 'mythic', habitat: ['mythical'], baitTypes: ['special'], size: { min: 2000, max: 5000, mean: 3300, stdDev: 400 }, weightCoeff: 18, baseValuePerKg: 32000, description: '세계 자체가 거대한 물고기였다', loreFlavor: '낚아낸 순간 세계는 새로 시작된다' }),
+  f({ id: 'wish_fish', name: '소원의 잉어', emoji: '🎏', rarity: 'mythic', habitat: ['mythical', 'freshwater'], baitTypes: ['special'], size: { min: 100, max: 200, mean: 150, stdDev: 22 }, weightCoeff: 16, baseValuePerKg: 28000, description: '소원 한 가지를 들어준다는 전설의 잉어' }),
+]
+
+// Combined pool. Order: common first → mythic last.
+export const fishPool: FishType[] = [
+  ...commonFish,
+  ...uncommonFish,
+  ...rareFish,
+  ...epicFish,
+  ...legendaryFish,
+  ...mythicFish,
+]
+
+// Lookup helpers
+const fishById = new Map(fishPool.map((f) => [f.id, f]))
+const fishByName = new Map(fishPool.map((f) => [f.name, f]))
+
+export function findFishById(id: string): FishType | undefined {
+  return fishById.get(id)
+}
+
+export function findFishByName(name: string): FishType | undefined {
+  return fishByName.get(name)
+}
+
+// ══════════════════════════════════════════════════════════
+//  Sampling utilities
+// ══════════════════════════════════════════════════════════
+
+// Box-Muller transform for normal distribution. Trophy fish should feel earned.
+function sampleNormal(mean: number, stdDev: number, min: number, max: number) {
+  const u1 = Math.max(Math.random(), 1e-9)
+  const u2 = Math.random()
+  const z = Math.sqrt(-2 * Math.log(u1)) * Math.cos(2 * Math.PI * u2)
+  const value = mean + z * stdDev
+  return Math.max(min, Math.min(max, value))
+}
+
+export function sampleSize(fish: FishType): number {
+  const { min, max, mean, stdDev } = fish.size
+  const raw = sampleNormal(mean, stdDev, min, max)
+  return Math.round(raw * 10) / 10
+}
+
+export function computeWeight(fish: FishType, sizeCm: number): number {
+  // weight ∝ length^3, scaled by per-fish coefficient (kg at 100cm)
+  const ratio = sizeCm / 100
+  const w = fish.weightCoeff * ratio * ratio * ratio
+  return Math.max(0.01, Math.round(w * 100) / 100)
+}
+
+// Trophy: top 15% within the sampling distribution. Record: top 2%.
+export function classifySize(fish: FishType, sizeCm: number) {
+  const trophyThreshold = fish.size.mean + fish.size.stdDev * 1.0
+  const recordThreshold = fish.size.mean + fish.size.stdDev * 2.0
+  return {
+    isTrophy: sizeCm >= trophyThreshold && sizeCm < recordThreshold,
+    isRecord: sizeCm >= recordThreshold,
+  }
+}
+
+export function computeValue(
+  fish: FishType,
+  weightKg: number,
+  sizeCm: number,
+  multipliers: { weather?: number; event?: number } = {},
+): number {
+  const sizeClass = classifySize(fish, sizeCm)
+  let sizeMult = 1.0
+  if (sizeClass.isRecord) sizeMult = 4.0
+  else if (sizeClass.isTrophy) sizeMult = 2.5
+  else if (sizeCm >= fish.size.mean + fish.size.stdDev * 0.5) sizeMult = 1.5
+  const weather = multipliers.weather ?? 1.0
+  const event = multipliers.event ?? 1.0
+  const raw = weightKg * fish.baseValuePerKg * sizeMult * weather * event
+  // Rarity-tier safety caps to avoid INTEGER overflow / runaway gold
+  const caps: Record<FishRarity, number> = {
+    common: 5000,
+    uncommon: 25000,
+    rare: 120000,
+    epic: 600000,
+    legendary: 3_000_000,
+    mythic: 15_000_000,
+  }
+  return Math.min(Math.round(raw), caps[fish.rarity])
+}
+
+// ══════════════════════════════════════════════════════════
+//  Time / season helpers
+// ══════════════════════════════════════════════════════════
+
+export function currentSeason(date = new Date()): Season {
+  const m = date.getMonth() + 1 // 1-12
+  if (m >= 3 && m <= 5) return 'spring'
+  if (m >= 6 && m <= 8) return 'summer'
+  if (m >= 9 && m <= 11) return 'autumn'
+  return 'winter'
+}
+
+export function currentTimeOfDay(date = new Date()): TimeOfDay {
+  const h = date.getHours()
+  if (h >= 5 && h < 8) return 'dawn'
+  if (h >= 8 && h < 17) return 'day'
+  if (h >= 17 && h < 20) return 'dusk'
+  return 'night'
+}
+
+// ══════════════════════════════════════════════════════════
+//  Fishing event roll (preserved API + behavior)
+// ══════════════════════════════════════════════════════════
+
 export function rollFishingEvent(
   spotLevel: number,
   pollutionLevel: number,
@@ -2569,92 +737,101 @@ export function rollFishingEvent(
   const doubleCatchChance = Math.max(0, 5 - pollutionLevel * 0.5)
   const goldenHourChance = 2
   const stormChance = 3
-  const dangerousChance = 2.5 + pollutionLevel * 0.3 // 2.5~5.5%
-  const seaMonsterChance = 2
+  const dangerousChance = 2.5 + pollutionLevel * 0.3
+  const seaMonsterChance = 2 + Math.max(0, spotLevel - 4) * 0.3
 
   let cumulative = 0
-
   cumulative += lineBreakChance
-  if (roll < cumulative) {
+  if (roll < cumulative)
     return { type: 'line_break', message: '낚싯줄이 끊어졌다!', emoji: '💔' }
-  }
   cumulative += dangerousChance
-  if (roll < cumulative) {
+  if (roll < cumulative)
     return {
       type: 'dangerous',
       message: '뭔가 위험한 게 낚였다...!',
       emoji: '☠️',
     }
-  }
   cumulative += trashChance
-  if (roll < cumulative) {
+  if (roll < cumulative)
     return { type: 'trash', message: '쓰레기가 걸렸다...', emoji: '🗑️' }
-  }
   cumulative += stormChance
-  if (roll < cumulative) {
+  if (roll < cumulative)
     return {
       type: 'storm',
       message: '폭풍이 몰아친다! 큰 물고기가 올라올 수도...',
       emoji: '🌊',
     }
-  }
   cumulative += goldenHourChance
-  if (roll < cumulative) {
+  if (roll < cumulative)
     return {
       type: 'golden_hour',
       message: '황금 시간! 물고기의 가치가 2배!',
       emoji: '✨',
     }
-  }
   cumulative += doubleCatchChance
-  if (roll < cumulative) {
+  if (roll < cumulative)
     return {
       type: 'double_catch',
       message: '대박! 한 번에 두 마리를 잡았다!',
       emoji: '🎉',
     }
-  }
   cumulative += treasureChance
-  if (roll < cumulative) {
+  if (roll < cumulative)
     return { type: 'treasure', message: '보물 상자를 낚았다!', emoji: '🎁' }
-  }
   cumulative += seaMonsterChance
-  if (roll < cumulative) {
+  if (roll < cumulative)
     return {
       type: 'sea_monster',
       message: '바다 괴물이 나타났다!',
       emoji: '🦑',
     }
-  }
   return { type: 'normal', message: '물고기가 걸렸다!', emoji: '🐟' }
 }
 
-// Roll fish — balanced: higher levels give only slight advantage
-// User requirement: "낚시터 등급 올라도 잡히는 물고기 등급 확률을 너무 많이 올리지 말고"
-export function rollFish(
-  spotLevel: number,
-  pollutionLevel: number = 0,
-  isStorm: boolean = false,
-  userId?: string,
-): { fish: FishType; size: number; value: number } {
-  const roll = Math.random() * 100
+// ══════════════════════════════════════════════════════════
+//  Fish roll — context-aware (habitat / season / TOD / bait)
+// ══════════════════════════════════════════════════════════
 
+export interface RollFishOpts {
+  pollutionLevel?: number
+  isStorm?: boolean
+  weather?: string // weather name
+  bait?: BaitType
+  season?: Season
+  timeOfDay?: TimeOfDay
+  habitats?: Habitat[] // restrict candidates to these habitats
+  userId?: string
+}
+
+export interface FishCatch {
+  fish: FishType
+  sizeCm: number
+  weightKg: number
+  value: number
+  isTrophy: boolean
+  isRecord: boolean
+}
+
+const RARITY_ORDER: FishRarity[] = [
+  'common',
+  'uncommon',
+  'rare',
+  'epic',
+  'legendary',
+  'mythic',
+]
+
+function pickRarity(
+  spotLevel: number,
+  pollutionLevel: number,
+  isStorm: boolean,
+  fortuneBonus: number,
+): FishRarity {
   const pollutionPenalty = pollutionLevel * 1.5
   const stormBonus = isStorm ? 5 : 0
-
-  // per-user fortune from DB
-  const _fortune = userId ? getUserFortune(userId) : null
-  const _fb = _fortune?.fish_bonus ?? 0
-  const _f = _fb > 0
-
-  // Very conservative rates - even max level gives only small boost
-  // spotLevel 1: common only
-  // spotLevel 2: uncommon 8%
-  // spotLevel 3: rare 3%, uncommon 12%
-  // spotLevel 4: epic 1.2%, rare 5%, uncommon 15%
-  // spotLevel 5: mythic 0.05%, legendary 0.4%, epic 2%, rare 6%, uncommon 16%
-  // Each additional level adds only tiny increments
-  const levelBonus = Math.max(0, spotLevel - 1) // 0-9
+  const _f = fortuneBonus > 0
+  const _fb = fortuneBonus
+  const levelBonus = Math.max(0, spotLevel - 1)
 
   const mythicChance = Math.max(
     0,
@@ -2692,55 +869,102 @@ export function rollFish(
       (_f ? 8.0 : 0),
   )
 
-  let rarity: string
-
-  if (roll < mythicChance) rarity = 'mythic'
-  else if (roll < mythicChance + legendaryChance) rarity = 'legendary'
-  else if (roll < mythicChance + legendaryChance + epicChance) rarity = 'epic'
-  else if (roll < mythicChance + legendaryChance + epicChance + rareChance)
-    rarity = 'rare'
-  else if (
+  const roll = Math.random() * 100
+  if (roll < mythicChance) return 'mythic'
+  if (roll < mythicChance + legendaryChance) return 'legendary'
+  if (roll < mythicChance + legendaryChance + epicChance) return 'epic'
+  if (roll < mythicChance + legendaryChance + epicChance + rareChance)
+    return 'rare'
+  if (
     roll <
     mythicChance + legendaryChance + epicChance + rareChance + uncommonChance
   )
-    rarity = 'uncommon'
-  else rarity = 'common'
-
-  const available = fishPool.filter((f) => f.rarity === rarity)
-  if (available.length === 0) {
-    const commons = fishPool.filter((f) => f.rarity === 'common')
-    const fish = commons[Math.floor(Math.random() * commons.length)]
-    const size =
-      Math.round(
-        (fish.minSize + Math.random() * (fish.maxSize - fish.minSize)) * 10,
-      ) / 10
-    return {
-      fish,
-      size,
-      value: Math.min(Math.round(size * fish.baseValue), 500),
-    }
-  }
-
-  const fish = available[Math.floor(Math.random() * available.length)]
-  const size =
-    Math.round(
-      (fish.minSize + Math.random() * (fish.maxSize - fish.minSize)) * 10,
-    ) / 10
-  // Value caps per rarity to prevent economy-breaking prices
-  const valueCaps: Record<string, number> = {
-    common: 500,
-    uncommon: 2000,
-    rare: 15000,
-    epic: 80000,
-    legendary: 500000,
-    mythic: 800000,
-  }
-  const rawValue = Math.round(size * fish.baseValue)
-  const value = Math.min(rawValue, valueCaps[fish.rarity] ?? rawValue)
-  return { fish, size, value }
+    return 'uncommon'
+  return 'common'
 }
 
-// Roll a random trash item
-export function rollTrash(): TrashType {
-  return trashPool[Math.floor(Math.random() * trashPool.length)]
+function filterCandidates(
+  rarity: FishRarity,
+  opts: RollFishOpts,
+): FishType[] {
+  const season = opts.season ?? currentSeason()
+  const tod = opts.timeOfDay ?? currentTimeOfDay()
+  const bait = opts.bait ?? 'any'
+  const habitats = opts.habitats
+
+  let candidates = fishPool.filter((f) => f.rarity === rarity)
+
+  if (habitats && habitats.length > 0) {
+    candidates = candidates.filter((f) =>
+      f.habitat.some((h) => habitats.includes(h)),
+    )
+  }
+  // Season filter — fish flagged 'all' always pass
+  candidates = candidates.filter(
+    (f) => f.season.includes('all') || f.season.includes(season),
+  )
+  // TOD filter — 'any' always passes
+  candidates = candidates.filter(
+    (f) => f.timeOfDay.includes('any') || f.timeOfDay.includes(tod),
+  )
+  // Bait filter — 'any' always passes; if user supplied a specific bait,
+  // accept fish tagged 'any' too (they're not picky).
+  if (bait !== 'any') {
+    candidates = candidates.filter(
+      (f) => f.baitTypes.includes('any') || f.baitTypes.includes(bait),
+    )
+  }
+
+  return candidates
 }
+
+// Backwards-compatible signature: rollFish(spotLevel, pollutionLevel?, isStorm?, userId?)
+// Plus optional opts object for future callers.
+export function rollFish(
+  spotLevel: number,
+  pollutionLevel: number = 0,
+  isStorm: boolean = false,
+  userId?: string,
+  opts: Omit<RollFishOpts, 'pollutionLevel' | 'isStorm' | 'userId'> = {},
+): FishCatch {
+  const fortune = userId ? getUserFortune(userId) : null
+  const fortuneBonus = fortune?.fish_bonus ?? 0
+
+  const rarity = pickRarity(spotLevel, pollutionLevel, isStorm, fortuneBonus)
+
+  let candidates = filterCandidates(rarity, {
+    ...opts,
+    pollutionLevel,
+    isStorm,
+    userId,
+  })
+
+  // Fallback: if filters wiped the candidate set, drop the bait/season/TOD
+  // filters before falling back to a different rarity.
+  if (candidates.length === 0) {
+    candidates = fishPool.filter((f) => f.rarity === rarity)
+  }
+  if (candidates.length === 0) {
+    candidates = fishPool.filter((f) => f.rarity === 'common')
+  }
+
+  const fish = candidates[Math.floor(Math.random() * candidates.length)]
+  const sizeCm = sampleSize(fish)
+  const weightKg = computeWeight(fish, sizeCm)
+  const { isTrophy, isRecord } = classifySize(fish, sizeCm)
+  const value = computeValue(fish, weightKg, sizeCm)
+
+  return { fish, sizeCm, weightKg, value, isTrophy, isRecord }
+}
+
+// Legacy helper retained for /shop or other callers that surveyed the pool.
+export function getAvailableFish(spotLevel: number): FishType[] {
+  const allowed: FishRarity[] = ['common']
+  if (spotLevel >= 2) allowed.push('uncommon')
+  if (spotLevel >= 3) allowed.push('rare')
+  if (spotLevel >= 4) allowed.push('epic')
+  if (spotLevel >= 5) allowed.push('legendary', 'mythic')
+  return fishPool.filter((f) => allowed.includes(f.rarity))
+}
+
+export const RARITIES = RARITY_ORDER

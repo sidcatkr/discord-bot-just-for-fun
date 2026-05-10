@@ -523,30 +523,54 @@ export interface CaughtFish {
   fish_size: number
   fish_value: number
   caught_at: string
+  // Extended schema (nullable for legacy rows)
+  fish_id: string | null
+  fish_weight: number | null
+  bait_used: string | null
+  weather_at_catch: string | null
+  is_trophy: number | null
+  is_record: number | null
+}
+
+export interface AddFishInput {
+  fish_id: string
+  fish_name: string
+  fish_rarity: string
+  fish_emoji: string
+  fish_size: number
+  fish_weight: number
+  fish_value: number
+  bait_used?: string
+  weather_at_catch?: string
+  is_trophy?: boolean
+  is_record?: boolean
 }
 
 export function addFish(
   userId: string,
   guildId: string,
-  fish: {
-    fish_name: string
-    fish_rarity: string
-    fish_emoji: string
-    fish_size: number
-    fish_value: number
-  },
+  fish: AddFishInput,
 ) {
   db.prepare(
-    `INSERT INTO fish_collection (user_id, guild_id, fish_name, fish_rarity, fish_emoji, fish_size, fish_value)
-     VALUES (?, ?, ?, ?, ?, ?, ?)`,
+    `INSERT INTO fish_collection
+       (user_id, guild_id, fish_id, fish_name, fish_rarity, fish_emoji,
+        fish_size, fish_weight, fish_value, bait_used, weather_at_catch,
+        is_trophy, is_record)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
   ).run(
     userId,
     guildId,
+    fish.fish_id,
     fish.fish_name,
     fish.fish_rarity,
     fish.fish_emoji,
     fish.fish_size,
+    fish.fish_weight,
     fish.fish_value,
+    fish.bait_used ?? null,
+    fish.weather_at_catch ?? null,
+    fish.is_trophy ? 1 : 0,
+    fish.is_record ? 1 : 0,
   )
 }
 
@@ -737,7 +761,7 @@ export function getCollectedItemNames(userId: string): string[] {
   return rows.map((r) => r.item_name)
 }
 
-// Get unique fish names a user has collected
+// Get unique fish names a user has collected (legacy — backed by fish_name)
 export function getCollectedFishNames(
   userId: string,
   guildId: string,
@@ -748,6 +772,26 @@ export function getCollectedFishNames(
     )
     .all(userId, guildId) as { fish_name: string }[]
   return rows.map((r) => r.fish_name)
+}
+
+// Get unique fish IDs a user has collected. Falls back to fish_name for
+// legacy rows that pre-date the schema migration.
+export function getCollectedFishIds(
+  userId: string,
+  guildId: string,
+): { ids: Set<string>; legacyNames: Set<string> } {
+  const rows = db
+    .prepare(
+      'SELECT DISTINCT fish_id, fish_name FROM fish_collection WHERE user_id = ? AND guild_id = ?',
+    )
+    .all(userId, guildId) as { fish_id: string | null; fish_name: string }[]
+  const ids = new Set<string>()
+  const legacyNames = new Set<string>()
+  for (const r of rows) {
+    if (r.fish_id) ids.add(r.fish_id)
+    else legacyNames.add(r.fish_name)
+  }
+  return { ids, legacyNames }
 }
 
 // ──────────────────────────────────────

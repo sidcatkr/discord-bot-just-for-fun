@@ -1,14 +1,16 @@
 import {
   ChatInputCommandInteraction,
-  EmbedBuilder,
   SlashCommandBuilder,
 } from 'discord.js'
-import { getCollectedFishNames } from '../../db/helpers.js'
+import { getCollectedFishIds } from '../../db/helpers.js'
+import { fishPool, RARITIES, type FishRarity } from '../../data/fish-data.js'
 import {
-  fishPool,
-  fishRarityLabels,
-  fishRarityColors,
-} from '../../data/fish-data.js'
+  renderCodexPage,
+  type CodexEntry,
+} from '../../render/cards/fish-codex-page.js'
+import type { CardTier } from '../../render/theme.js'
+
+const PAGE_SIZE = 12 // 4 cols × 3 rows
 
 export const data = new SlashCommandBuilder()
   .setName('fishbook')
@@ -26,74 +28,72 @@ export const data = new SlashCommandBuilder()
         { name: '🟥 신화', value: 'mythic' },
       ),
   )
+  .addIntegerOption((opt) =>
+    opt
+      .setName('page')
+      .setDescription('도감 페이지 번호 (1부터)')
+      .setMinValue(1),
+  )
 
 export async function execute(interaction: ChatInputCommandInteraction) {
   const user = interaction.user
   const guildId = interaction.guildId!
-  const rarityFilter = interaction.options.getString('rarity')
+  const rarityFilter = interaction.options.getString('rarity') as
+    | FishRarity
+    | null
+  const requestedPage = interaction.options.getInteger('page') ?? 1
 
-  const collected = new Set(getCollectedFishNames(user.id, guildId))
-  const allFish = rarityFilter
-    ? fishPool.filter((f) => f.rarity === rarityFilter)
-    : fishPool
+  const { ids: collectedIds, legacyNames } = getCollectedFishIds(
+    user.id,
+    guildId,
+  )
 
+  // Filter + sort the catalogue (rarity grouping for stable order)
+  const catalogue = fishPool.filter((f) =>
+    rarityFilter ? f.rarity === rarityFilter : true,
+  )
+  catalogue.sort((a, b) => {
+    const ra = RARITIES.indexOf(a.rarity)
+    const rb = RARITIES.indexOf(b.rarity)
+    if (ra !== rb) return ra - rb
+    return a.name.localeCompare(b.name, 'ko')
+  })
+
+  // Completion stats use the unfiltered pool
   const totalAll = fishPool.length
-  const totalCollected = fishPool.filter((f) => collected.has(f.name)).length
-  const completionRate = ((totalCollected / totalAll) * 100).toFixed(1)
+  const totalCollected = fishPool.filter(
+    (f) => collectedIds.has(f.id) || legacyNames.has(f.name),
+  ).length
 
-  // Group by rarity
-  const rarityOrder = [
-    'common',
-    'uncommon',
-    'rare',
-    'epic',
-    'legendary',
-    'mythic',
-  ]
-  const grouped: Record<string, typeof allFish> = {}
-  for (const fish of allFish) {
-    if (!grouped[fish.rarity]) grouped[fish.rarity] = []
-    grouped[fish.rarity].push(fish)
-  }
+  const totalPages = Math.max(1, Math.ceil(catalogue.length / PAGE_SIZE))
+  const page = Math.min(Math.max(1, requestedPage), totalPages)
 
-  const lines: string[] = []
+  const start = (page - 1) * PAGE_SIZE
+  const slice = catalogue.slice(start, start + PAGE_SIZE)
 
-  for (const rarity of rarityOrder) {
-    const fishList = grouped[rarity]
-    if (!fishList || fishList.length === 0) continue
+  const entries: CodexEntry[] = slice.map((f) => ({
+    tier: f.rarity as CardTier,
+    emoji: f.emoji,
+    name: f.name,
+    found: collectedIds.has(f.id) || legacyNames.has(f.name),
+  }))
 
-    const rarityCollected = fishList.filter((f) => collected.has(f.name)).length
-    lines.push(
-      `\n**${fishRarityLabels[rarity]}** (${rarityCollected}/${fishList.length})`,
-    )
+  const card = renderCodexPage({
+    username: user.username,
+    page,
+    totalPages,
+    collected: totalCollected,
+    total: totalAll,
+    entries,
+  })
 
-    for (const fish of fishList) {
-      const found = collected.has(fish.name)
-      if (found) {
-        lines.push(`${fish.emoji} ${fish.name} — *${fish.description}*`)
-      } else {
-        lines.push(`❓ ??? — *아직 발견하지 못했습니다*`)
-      }
-    }
-  }
+  const navHint =
+    totalPages > 1
+      ? `\n페이지 ${page}/${totalPages} — \`/fishbook page:${Math.min(page + 1, totalPages)}\` 로 다음 페이지`
+      : ''
 
-  // Paginate — embed description limit
-  const fullText = lines.join('\n')
-  const displayText =
-    fullText.length > 3800
-      ? fullText.slice(0, 3800) + '\n\n*...더 있습니다*'
-      : fullText
-
-  const embed = new EmbedBuilder()
-    .setColor(0x1e90ff)
-    .setTitle(`📖 ${user.username}의 물고기 도감`)
-    .setDescription(
-      `🐟 **도감 완성도:** ${totalCollected}/${totalAll} (${completionRate}%)\n` +
-        `─────────────────────\n` +
-        displayText,
-    )
-    .setFooter({ text: '낚시로 새로운 물고기를 발견하세요!' })
-    .setTimestamp()
-
-  await interaction.reply({ embeds: [embed] })
+  await interaction.reply({
+    content: `🐟 ${totalCollected}/${totalAll} 수집 완료${navHint}`,
+    files: [card],
+  })
 }

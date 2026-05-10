@@ -210,6 +210,23 @@ try {
   db.exec('ALTER TABLE user_fortune ADD COLUMN kick_bonus REAL DEFAULT 0')
 }
 
+// Migrate: extend fish_collection with new schema columns (idempotent ALTERs)
+const fishCollectionMigrations: { col: string; sql: string }[] = [
+  { col: 'fish_id', sql: 'ALTER TABLE fish_collection ADD COLUMN fish_id TEXT' },
+  { col: 'fish_weight', sql: 'ALTER TABLE fish_collection ADD COLUMN fish_weight REAL' },
+  { col: 'bait_used', sql: 'ALTER TABLE fish_collection ADD COLUMN bait_used TEXT' },
+  { col: 'weather_at_catch', sql: 'ALTER TABLE fish_collection ADD COLUMN weather_at_catch TEXT' },
+  { col: 'is_trophy', sql: 'ALTER TABLE fish_collection ADD COLUMN is_trophy INTEGER DEFAULT 0' },
+  { col: 'is_record', sql: 'ALTER TABLE fish_collection ADD COLUMN is_record INTEGER DEFAULT 0' },
+]
+for (const m of fishCollectionMigrations) {
+  try {
+    db.prepare(`SELECT ${m.col} FROM fish_collection LIMIT 1`).get()
+  } catch {
+    db.exec(m.sql)
+  }
+}
+
 // ══════════════════════════════════════════════════════════
 //  Season 2 Tables — Character/Weapon/Relic/Gacha System
 // ══════════════════════════════════════════════════════════
